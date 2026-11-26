@@ -125,6 +125,10 @@ function OrderDesktop() {
                 <span>Paket {o.pkg.name}</span>
                 <strong>{formatIDR(o.pkg.price)}</strong>
               </div>
+              <div className="summary__row">
+                <span>Link undangan aktif</span>
+                <strong>{o.pkg.active}</strong>
+              </div>
               <SummaryList features={o.features} />
               <div className="summary__total">
                 <span>Total</span>

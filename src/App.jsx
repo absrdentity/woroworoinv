@@ -7,6 +7,7 @@ import Demo from './pages/Demo.jsx';
 import Order from './pages/Order.jsx';
 import Success from './pages/Success.jsx';
 import Admin from './pages/Admin.jsx';
+import Invite from './pages/Invite.jsx';
 import { useIsMobile } from './hooks/useMediaQuery.js';
 
 function ScrollToTop() {
@@ -33,7 +34,11 @@ export default function App() {
   // Dua tampilan terpisah: DESKTOP (> 820px) dan MOBILE (<= 820px)
   const isMobile = useIsMobile();
   const { pathname } = useLocation();
-  const showBottomNav = isMobile && !pathname.startsWith('/pesan');
+  const isInvite = pathname.startsWith('/u/');
+  const showBottomNav = isMobile && !isInvite && !pathname.startsWith('/pesan');
+
+  // Halaman undangan milik pelanggan: layar penuh, tanpa header/footer situs
+  if (isInvite) return <Invite />;
 
   return (
     <div className={`app ${isMobile ? 'is-mobile' : 'is-desktop'}${showBottomNav ? ' has-bottomnav' : ''}`}>

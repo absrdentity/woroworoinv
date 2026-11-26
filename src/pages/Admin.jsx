@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import AdminInvitations from './AdminInvitations.jsx';
 import Icon from '../components/Icon.jsx';
 import { useAdmin, useConfig } from '../lib/config.jsx';
 import { adminApi, setAdminToken } from '../lib/admin.js';
@@ -352,13 +353,14 @@ function Dashboard() {
 export default function Admin() {
   const cfg = useConfig();
   const { isAdmin, checking } = useAdmin();
+  const [tab, setTab] = useState('bayar');
 
   return (
     <div className="container container--medium admin">
       <div className="page-head">
         <span className="eyebrow">Admin</span>
-        <h1>Pengaturan pembayaran</h1>
-        <p className="muted">Konfigurasi Midtrans, pemeriksaan otomatis, dan uji coba pembayaran tanpa biaya.</p>
+        <h1>Panel admin</h1>
+        <p className="muted">Pembayaran Midtrans, uji coba tanpa biaya, dan pengelolaan link undangan pelanggan.</p>
       </div>
 
       {cfg.loading || (cfg.adminEnabled && checking) ? (
@@ -384,7 +386,24 @@ export default function Admin() {
               <Icon name="logout" size={15} /> Keluar
             </button>
           </div>
-          <Dashboard />
+          <div className="seg seg--full admin__tabs" role="tablist" aria-label="Bagian admin">
+            {[
+              ['bayar', 'Pembayaran', 'card'],
+              ['undangan', 'Undangan', 'mail'],
+            ].map(([id, label, icon]) => (
+              <button
+                type="button"
+                key={id}
+                role="tab"
+                aria-selected={tab === id}
+                className={`seg__btn${tab === id ? ' is-on' : ''}`}
+                onClick={() => setTab(id)}
+              >
+                <Icon name={icon} size={16} /> {label}
+              </button>
+            ))}
+          </div>
+          {tab === 'bayar' ? <Dashboard /> : <AdminInvitations />}
         </>
       )}
     </div>

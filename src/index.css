@@ -1916,3 +1916,130 @@ em {
     transition: none !important;
   }
 }
+
+/* ---------- Durasi paket & manajemen undangan (admin) ---------- */
+.pkg__dur {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--gold-50);
+  color: var(--gold-d);
+  font-size: 0.85rem;
+}
+.pick__dur {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--gold-d) !important;
+}
+.btn--danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+.link--danger {
+  color: var(--bad);
+}
+.admin__tabs {
+  margin-bottom: 18px;
+}
+.invlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.invrow {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px;
+  background: var(--surface);
+}
+.invrow__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.invrow__head .codeline {
+  margin-top: 6px;
+  display: block;
+  word-break: break-all;
+}
+.invrow__actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.invrow__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+.invrow__confirm {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.85rem;
+}
+.invrow__more {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: var(--r-sm);
+  display: grid;
+  gap: 8px;
+}
+.invrow__more textarea {
+  width: 100%;
+  font: inherit;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.guestlinks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  overflow: auto;
+}
+.guestlinks li {
+  display: grid;
+  grid-template-columns: minmax(80px, 160px) 1fr auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.guestlinks code {
+  overflow-wrap: anywhere;
+  font-size: 0.74rem;
+}
+.invite-ready {
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid var(--brand-100);
+  background: var(--brand-50);
+  border-radius: var(--r);
+  display: grid;
+  gap: 8px;
+}
+.invite-ready strong {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--brand);
+}
+.invite-ready .codeline {
+  word-break: break-all;
+}

@@ -1,6 +1,24 @@
 import { validateSelection, validateCustomer } from '../shared/catalog.js';
 import { isAdminReq, makeSimOrderId } from './_lib/admin.js';
 import { snapUrl, authHeader, clean } from './_lib/midtrans.js';
+import { saveOrder } from './_lib/invitations.js';
+
+/** Simpan data pesanan agar undangan dibuat otomatis saat lunas (abaikan bila penyimpanan belum diatur). */
+async function keepOrder(orderId, body, sel, simulated) {
+  try {
+    await saveOrder(orderId, {
+      packageId: sel.pkg.id,
+      features: sel.features,
+      themeId: body.theme,
+      eventTypeId: body.eventType,
+      event: body.event || {},
+      customer: { name: clean(body.customer.name, 60), email: clean(body.customer.email, 100), phone: clean(body.customer.phone, 20) },
+      simulated,
+    });
+  } catch (e) {
+    console.error('saveOrder gagal:', e.message);
+  }
+}
 
 const OUTCOMES = ['success', 'pending', 'failed'];
 
@@ -32,7 +50,9 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Simulasi pembayaran hanya untuk admin. Silakan login di /admin.' });
       }
       const outcome = OUTCOMES.includes(body.simulate) ? body.simulate : 'success';
-      return res.status(200).json({ simulated: true, outcome, order_id: makeSimOrderId(outcome) });
+      const simId = makeSimOrderId(outcome);
+      await keepOrder(simId, body, sel, true);
+      return res.status(200).json({ simulated: true, outcome, order_id: simId });
     }
 
     const { pkg, features } = sel;
@@ -66,6 +86,8 @@ export default async function handler(req, res) {
       expiry: { unit: 'hours', duration: 24 },
       callbacks: { finish: `${origin}/sukses` },
     };
+
+    await keepOrder(orderId, body, sel, false);
 
     const response = await fetch(snapUrl(), {
       method: 'POST',

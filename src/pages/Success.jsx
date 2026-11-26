@@ -105,7 +105,9 @@ export default function Success() {
       tone = 'ok';
       icon = 'check-circle';
       title = 'Pembayaran berhasil';
-      desc = 'Terima kasih! Kirim detail pesanan Anda ke admin agar undangan segera kami proses.';
+      desc = data?.invitation
+        ? 'Terima kasih! Undangan Anda sudah dibuat otomatis. Kirim detail ke admin bila ingin penyesuaian (foto, musik, rekening).'
+        : 'Terima kasih! Kirim detail pesanan Anda ke admin agar undangan segera kami proses.';
     } else if (failed) {
       tone = 'bad';
       icon = 'x-circle';
@@ -171,6 +173,36 @@ export default function Success() {
               </div>
             )}
           </dl>
+        )}
+
+        {paid && data?.invitation && (
+          <div className="invite-ready" data-testid="invite-ready">
+            <strong>
+              <Icon name="check-circle" size={16} /> Link undangan Anda sudah aktif
+            </strong>
+            <code className="codeline">{data.invitation.url}</code>
+            <p className="small muted">
+              Aktif sampai {new Date(data.invitation.expiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}.
+              Tambahkan <code>?to=Nama Tamu</code> di akhir link untuk menyapa tamu dengan nama mereka.
+            </p>
+            <div className="status__actions">
+              <a className="btn" href={data.invitation.url} target="_blank" rel="noreferrer">
+                <Icon name="external" size={16} /> Buka undangan
+              </a>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => navigator.clipboard?.writeText(data.invitation.url).catch(() => {})}
+              >
+                <Icon name="copy" size={16} /> Salin link
+              </button>
+            </div>
+          </div>
+        )}
+        {paid && data?.storage && !data?.invitation && (
+          <p className="alert alert--info">
+            <Icon name="info" size={16} /> <span>Link undangan sedang disiapkan. Klik “Cek status lagi” beberapa detik lagi.</span>
+          </p>
         )}
 
         <div className="status__actions">

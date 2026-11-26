@@ -21,9 +21,12 @@ export function setAdminToken(token) {
 }
 
 /** Panggil /api/admin?action=... dengan token admin (bila ada). */
-export async function adminApi(action, { method = 'GET', body } = {}) {
+export async function adminApi(action, { method = 'GET', body, query = {} } = {}) {
   const token = getAdminToken();
-  const res = await fetch(`/api/admin?action=${encodeURIComponent(action)}`, {
+  const extra = Object.entries(query)
+    .map(([k, v]) => `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('');
+  const res = await fetch(`/api/admin?action=${encodeURIComponent(action)}${extra}`, {
     method,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: body ? JSON.stringify(body) : undefined,

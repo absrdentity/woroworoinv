@@ -9,11 +9,18 @@ export default function Names({ text, fx }) {
       </h2>
     );
   }
+  // huruf dikelompokkan per kata agar baris tidak terputus di tengah kata
+  let i = 0;
   return (
     <h2 className="inv-names" data-fx={fx} aria-label={text}>
-      {Array.from(text).map((ch, i) => (
-        <span key={i} aria-hidden="true" className="ltr" style={{ '--i': i }}>
-          {ch === ' ' ? '\u00a0' : ch}
+      {text.split(' ').map((word, w, arr) => (
+        <span key={w} aria-hidden="true" style={{ whiteSpace: 'nowrap' }}>
+          {Array.from(word).map((ch) => (
+            <span key={i} className="ltr" style={{ '--i': i++ }}>
+              {ch}
+            </span>
+          ))}
+          {w < arr.length - 1 ? ' ' : ''}
         </span>
       ))}
     </h2>

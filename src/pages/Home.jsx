@@ -53,9 +53,10 @@ function PackageCard({ p }) {
       <div className="pkg__quota">
         {p.quota >= FEATURES.length ? `Semua ${FEATURES.length} fitur` : `Pilih hingga ${p.quota} fitur`}
       </div>
-      <p className="small muted">
-        Akses fitur level 1{p.tier > 1 ? `–${p.tier}` : ''} · aktif {p.active}
+      <p className="pkg__dur">
+        <Icon name="clock" size={14} /> Link undangan aktif <b>{p.active}</b>
       </p>
+      <p className="small muted">Akses fitur level 1{p.tier > 1 ? `–${p.tier}` : ''}</p>
       <ul className="pkg__list">
         {p.includes.map((i) => (
           <li key={i}>

@@ -20,6 +20,30 @@ React + Vite, pembayaran **Midtrans Snap**, siap di-deploy ke **Vercel**.
 - **Halaman Admin (`/admin`)**: panduan setup, pemeriksaan konfigurasi otomatis, uji koneksi
   Midtrans, dan **simulasi pembayaran tanpa bayar** (hanya untuk admin).
 
+## Link undangan otomatis (gratis, Upstash Redis)
+
+Setelah pembayaran lunas, link undangan dibuat **otomatis dari nama pemilik**, mis.
+`https://domain-anda/u/raka-ayu` (nama kembar otomatis diberi akhiran angka). Link dibuat oleh webhook Midtrans
+dan/atau halaman `/sukses` (idempoten, tidak pernah ganda), lalu ditampilkan kepada pelanggan.
+
+- **Masa aktif** mengikuti paket (`durationDays` di `shared/catalog.js`: 30 / 90 / 180 / 365 hari) dan tampil
+  di kartu harga. Admin bisa mengubah per undangan: tambah hari, atau hitung ulang dari hari ini.
+- Setelah kedaluwarsa, link menampilkan "Undangan sudah berakhir"; data dihapus otomatis 30 hari kemudian.
+- **Hapus manual** oleh admin kapan saja (`/admin` > tab **Undangan**).
+- Admin juga bisa **membuat undangan manual**, membuat **link per tamu** (`?to=Nama`), dan melihat
+  **RSVP & ucapan** yang masuk.
+- RSVP dan ucapan tamu pada link asli tersimpan di server.
+
+Penyimpanan memakai **Upstash Redis (paket Free)**, tanpa library tambahan. Tanpa penyimpanan, pembayaran
+tetap berjalan seperti biasa; hanya fitur link otomatis yang nonaktif.
+
+1. Vercel > project > **Storage / Marketplace** > **Upstash** > **Redis**, pilih paket **Free**, buat database.
+2. **Connect Project** (semua environment). Variabel `KV_REST_API_URL` dan `KV_REST_API_TOKEN` terisi otomatis
+   (atau isi manual `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN` dari upstash.com).
+3. **Redeploy**, lalu buka `/admin` > tab **Undangan**.
+
+Uji tanpa bayar: simulasi pembayaran "Berhasil" sebagai admin juga membuat undangan (bertanda "Simulasi").
+
 ## Setup pembayaran (3 variabel saja)
 
 Mode **Sandbox/Production dikenali otomatis** dari awalan Server Key (`SB-` = Sandbox). Tidak ada
@@ -63,16 +87,17 @@ dengan label "Simulasi uji coba".
 ## Struktur
 
 ```
-api/                     Vercel Serverless Functions (5 fungsi, aman untuk paket Hobby)
+api/                     Vercel Serverless Functions (6 fungsi, aman untuk paket Hobby)
+  invite.js              GET/POST  data undangan publik, RSVP & ucapan tamu
   config.js              GET   konfigurasi publik (Client Key, mode, status admin)
   admin.js               POST/GET  login, verifikasi, diagnostik, uji koneksi
   create-transaction.js  POST  buat transaksi Snap (harga dihitung di server) / simulasi admin
   notification.js        POST  webhook Midtrans (verifikasi signature)
   status.js              GET   cek status transaksi
-  _lib/                  helper (midtrans.js, admin.js)
+  _lib/                  helper (midtrans.js, admin.js, store.js Upstash, invitations.js)
 shared/catalog.js        paket, fitur, tema, validasi (dipakai frontend & API)
 src/
-  pages/                 Home, Demo, Order, Success, Admin
+  pages/                 Home, Demo, Order, Success, Admin, AdminInvitations, Invite (/u/slug)
   components/            Icon, InvitationPreview, Navbar (header + bottom nav), Footer, order/Pickers
   components/invitation/ Fx (efek partikel), CoverArt (ornamen SVG), Names (efek nama), themeVars
   invitation.css         gaya undangan: bingkai ponsel/desktop, template, efek, animasi
@@ -110,7 +135,7 @@ npx vercel dev                 # frontend + /api di http://localhost:3000
 
 ## Catatan
 
-Tanpa database agar mudah di-deploy. Setelah bayar, `/sukses` mengecek status ke Midtrans dan
+Database bersifat opsional (hanya untuk fitur link undangan). Setelah bayar, `/sukses` mengecek status ke Midtrans dan
 menyediakan tombol kirim detail ke admin via WhatsApp (plus salin ringkasan). Ringkasan pesanan juga
 tampil di Midtrans Dashboard (`custom_field1–3`). Untuk skala lebih besar, tambahkan database
 (Supabase / Vercel Postgres), email otomatis saat lunas, dan halaman kelola pesanan.

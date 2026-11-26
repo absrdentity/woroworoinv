@@ -1,4 +1,5 @@
 import { verifySignature, isPaid } from './_lib/midtrans.js';
+import { ensureInvitationForOrder, storeConfigured } from './_lib/invitations.js';
 
 /**
  * POST /api/notification  (Midtrans HTTP Notification / Webhook)
@@ -31,9 +32,16 @@ export default async function handler(req, res) {
       })
     );
 
-    // TODO (opsional, untuk produksi): simpan status ke database dan/atau
-    // kirim email/WhatsApp otomatis ke pelanggan & admin ketika `paid === true`.
-    // Contoh layanan: Supabase / Vercel Postgres (database), Resend (email).
+    // Lunas -> link undangan dibuat otomatis (idempoten; aman bila Midtrans mengirim ulang).
+    if (paid && storeConfigured()) {
+      try {
+        const inv = await ensureInvitationForOrder(n.order_id);
+        console.log(JSON.stringify({ event: 'invitation_ready', order_id: n.order_id, slug: inv && inv.slug }));
+      } catch (e) {
+        console.error('Gagal membuat undangan otomatis:', e.message);
+        return res.status(500).json({ error: 'Gagal membuat undangan' }); // Midtrans akan mencoba lagi
+      }
+    }
 
     return res.status(200).json({ ok: true });
   } catch (err) {

@@ -5,6 +5,7 @@ import Fx from './invitation/Fx.jsx';
 import CoverArt from './invitation/CoverArt.jsx';
 import Names from './invitation/Names.jsx';
 import { themeStyle } from './invitation/themeVars.js';
+import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import '../invitation.css';
 
 const DEFAULT_DATE = '2027-02-14';
@@ -204,12 +205,17 @@ export default function InvitationPreview({
   data = {},
   guest = '',
   height = 620,
-  device = 'phone',
+  device = 'phone', // 'phone' | 'desktop' | 'full' (layar penuh: undangan asli di /u/slug)
+  live = null, // { wishes, sendWish(name,msg), sendRsvp(name,attend) } untuk undangan asli
+  showExtras = true,
 }) {
   const theme = THEMES.find((t) => t.id === themeId) || THEMES[0];
   const ev = EVENT_TYPES.find((e) => e.id === eventTypeId) || EVENT_TYPES[0];
   const has = (id) => features.includes(id);
-  const desktop = device === 'desktop';
+  const wide = useMediaQuery('(min-width: 900px)');
+  const full = device === 'full';
+  const layout = full ? (wide ? 'desktop' : 'phone') : device;
+  const desktop = layout === 'desktop';
 
   const [lang, setLang] = useState('id');
   const [playing, setPlaying] = useState(false);
@@ -218,10 +224,15 @@ export default function InvitationPreview({
   const [rsvpDone, setRsvpDone] = useState(false);
   const [copied, setCopied] = useState(false);
   const [wishText, setWishText] = useState('');
-  const [wishes, setWishes] = useState([
-    { n: 'Dinda', m: 'Selamat berbahagia! Semoga lancar sampai hari H.' },
-    { n: 'Pak Budi', m: 'Semoga menjadi keluarga yang sakinah, mawaddah, warahmah.' },
-  ]);
+  const [wishes, setWishes] = useState(() =>
+    live
+      ? live.wishes.map((w) => ({ n: w.n, m: w.m }))
+      : [
+          { n: 'Dinda', m: 'Selamat berbahagia! Semoga lancar sampai hari H.' },
+          { n: 'Pak Budi', m: 'Semoga menjadi keluarga yang sakinah, mawaddah, warahmah.' },
+        ]
+  );
+  const [sending, setSending] = useState(false);
 
   const multilang = has('multilang');
   const L = multilang ? lang : 'id';
@@ -275,11 +286,39 @@ export default function InvitationPreview({
     sc.scrollTo({ top: desktop ? 340 : body ? body.offsetTop : 600, behavior: 'smooth' });
   };
 
-  const submitWish = (e) => {
+  const submitWish = async (e) => {
     e.preventDefault();
-    if (!wishText.trim()) return;
-    setWishes((w) => [{ n: guest.trim() || 'Anda', m: wishText.trim().slice(0, 140) }, ...w]);
+    if (!wishText.trim() || sending) return;
+    const item = { n: guest.trim() || (live ? 'Tamu' : 'Anda'), m: wishText.trim().slice(0, 140) };
+    if (live) {
+      setSending(true);
+      try {
+        await live.sendWish(item.n, item.m);
+      } catch {
+        setSending(false);
+        return;
+      }
+      setSending(false);
+    }
+    setWishes((w) => [item, ...w]);
     setWishText('');
+  };
+
+  const submitRsvp = async (e) => {
+    e.preventDefault();
+    const n = rsvpName.trim() || guest.trim();
+    if (!n || sending) return;
+    if (live) {
+      setSending(true);
+      try {
+        await live.sendRsvp(n, attend);
+      } catch {
+        setSending(false);
+        return;
+      }
+      setSending(false);
+    }
+    setRsvpDone(true);
   };
 
   const copyRek = async () => {
@@ -292,7 +331,7 @@ export default function InvitationPreview({
     setTimeout(() => setCopied(false), 1800);
   };
 
-  const hiddenFeatures = FEATURES.filter((f) => has(f.id) && !f.visible);
+  const hiddenFeatures = showExtras ? FEATURES.filter((f) => has(f.id) && !f.visible) : [];
 
   // animasi muncul saat di-scroll (reveal) — diulang saat tema/perangkat/fitur berubah
   const featKey = features.join(',');
@@ -316,22 +355,22 @@ export default function InvitationPreview({
     );
     els.forEach((e) => io.observe(e));
     return () => io.disconnect();
-  }, [themeId, device, featKey, lang]);
+  }, [themeId, layout, featKey, lang]);
 
   const v = theme.vars;
-  const style = { ...themeStyle(theme), '--vh': `${DESK_H}px` };
+  const style = { ...themeStyle(theme), '--vh': full ? '100dvh' : `${DESK_H}px` };
 
   const screen = (
     <div
       className="inv"
       data-tpl={theme.id}
-      data-device={device}
+      data-device={layout}
       data-reveal={theme.reveal}
       data-card={theme.card}
       style={style}
     >
       <Fx kind={theme.effect} colors={v.fx} count={desktop ? 24 : 16} seed={theme.id} />
-      <div className="inv-scroll" ref={scrollRef} key={`${theme.id}-${device}`}>
+      <div className="inv-scroll" ref={scrollRef} key={`${theme.id}-${layout}`}>
         <section className="inv-cover">
           <div className="inv-cover__art">
             <CoverArt kind={theme.cover} />
@@ -435,12 +474,7 @@ export default function InvitationPreview({
               {rsvpDone ? (
                 <p className="inv-ok">{T.sent}</p>
               ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (rsvpName.trim() || guest.trim()) setRsvpDone(true);
-                  }}
-                >
+                <form onSubmit={submitRsvp}>
                   <input
                     className="inv-input"
                     placeholder={T.yourName}
@@ -557,6 +591,15 @@ export default function InvitationPreview({
       {lang === 'id' ? 'EN' : 'ID'}
     </button>
   );
+
+  if (full) {
+    return (
+      <div className="inv-full">
+        {screen}
+        {langBtn && <div className="inv-lang">{langBtn}</div>}
+      </div>
+    );
+  }
 
   if (desktop) {
     const barH = 34;

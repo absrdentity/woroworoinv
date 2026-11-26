@@ -45,8 +45,9 @@ export const PACKAGES = [
     price: 99000,
     quota: 3,
     active: '30 hari',
+    durationDays: 30,
     tagline: 'Sederhana, cepat, tetap rapi.',
-    includes: ['Cover & detail acara', '1 tema pilihan', 'Link undangan unik', 'Revisi 1x', 'Masa aktif 30 hari'],
+    includes: ['Cover & detail acara', '1 tema pilihan', 'Link undangan otomatis (nama-anda)', 'Revisi 1x', 'Link aktif 30 hari'],
   },
   {
     id: 'standard',
@@ -55,9 +56,10 @@ export const PACKAGES = [
     price: 199000,
     quota: 6,
     active: '3 bulan',
+    durationDays: 90,
     popular: true,
     tagline: 'Paling banyak dipilih pasangan.',
-    includes: ['Semua yang ada di Basic', 'Pilih dari 4 tema', 'Revisi 3x', 'Masa aktif 3 bulan'],
+    includes: ['Semua yang ada di Basic', 'Pilih dari 9 template', 'Revisi 3x', 'Link aktif 3 bulan'],
   },
   {
     id: 'premium',
@@ -66,8 +68,9 @@ export const PACKAGES = [
     price: 349000,
     quota: 10,
     active: '6 bulan',
+    durationDays: 180,
     tagline: 'Interaktif untuk tamu & tuan rumah.',
-    includes: ['Semua yang ada di Standard', 'Penyesuaian warna & font', 'Revisi 5x', 'Masa aktif 6 bulan'],
+    includes: ['Semua yang ada di Standard', 'Penyesuaian warna & font', 'Revisi 5x', 'Link aktif 6 bulan'],
   },
   {
     id: 'exclusive',
@@ -76,8 +79,9 @@ export const PACKAGES = [
     price: 599000,
     quota: FEATURES.length,
     active: '12 bulan',
+    durationDays: 365,
     tagline: 'Semua fitur terbuka, tanpa batas.',
-    includes: ['Semua yang ada di Premium', 'Akses semua fitur', 'Revisi hingga puas*', 'Masa aktif 12 bulan'],
+    includes: ['Semua yang ada di Premium', 'Akses semua fitur', 'Revisi hingga puas*', 'Link aktif 12 bulan'],
   },
 ];
 
@@ -273,4 +277,22 @@ export function validateCustomer({ name, email, phone } = {}) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)) return 'Format email tidak valid.';
   if (!/^(\+62|62|0)8[0-9]{8,12}$/.test(p)) return 'Nomor WhatsApp tidak valid (contoh: 08123456789).';
   return null;
+}
+
+/** Teks durasi aktif link undangan, mis. "3 bulan". */
+export const durationLabel = (pkg) => (pkg && pkg.active) || '';
+
+/** Membuat slug link dari nama pemilik undangan: "Raka" & "Ayu" -> "raka-ayu". */
+export function slugify(...names) {
+  const base = names
+    .filter(Boolean)
+    .join(' ')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/g, '');
+  return base || 'undangan';
 }

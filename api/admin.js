@@ -10,6 +10,19 @@ import {
   snapUrl,
 } from './_lib/midtrans.js';
 
+import {
+  createInvitation,
+  daysLeft,
+  deleteInvitation,
+  listInvitations,
+  listRsvps,
+  listWishes,
+  statusOf,
+  storeConfigured,
+  updateInvitation,
+} from './_lib/invitations.js';
+import { kv } from './_lib/store.js';
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function originOf(req) {
@@ -136,9 +149,52 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: false, mode, message: `Midtrans menolak: ${reason}.${hint}` });
     }
 
+    // ---------- Undangan (butuh penyimpanan Upstash) ----------
+    if (action.startsWith('inv_')) {
+      if (!storeConfigured()) {
+        return res.status(200).json({ storage: false, items: [] });
+      }
+      const body = req.method === 'POST' ? (typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {}) : {};
+      const origin = originOf(req);
+      const row = (inv) => ({
+        ...inv,
+        url: `${origin}/u/${inv.slug}`,
+        status: statusOf(inv),
+        daysLeft: daysLeft(inv),
+      });
+
+      if (action === 'inv_status') {
+        try {
+          await kv.ping();
+          return res.status(200).json({ storage: true, ok: true });
+        } catch (e) {
+          return res.status(200).json({ storage: true, ok: false, message: e.message });
+        }
+      }
+      if (action === 'inv_list') {
+        return res.status(200).json({ storage: true, items: (await listInvitations()).map(row) });
+      }
+      if (action === 'inv_create' && req.method === 'POST') {
+        const inv = await createInvitation(body, { orderId: null });
+        return res.status(200).json({ storage: true, item: row(inv) });
+      }
+      if (action === 'inv_update' && req.method === 'POST') {
+        const inv = await updateInvitation(String(body.slug || ''), body);
+        return res.status(200).json({ storage: true, item: row(inv) });
+      }
+      if (action === 'inv_delete' && req.method === 'POST') {
+        await deleteInvitation(String(body.slug || ''));
+        return res.status(200).json({ storage: true, ok: true });
+      }
+      if (action === 'inv_guests') {
+        const slug = String((req.query && req.query.slug) || '');
+        return res.status(200).json({ rsvps: await listRsvps(slug), wishes: await listWishes(slug, 100) });
+      }
+    }
+
     return res.status(400).json({ error: 'Aksi tidak dikenal.' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: err.message || 'Terjadi kesalahan server.' });
+    return res.status(err.status || 500).json({ error: err.message || 'Terjadi kesalahan server.' });
   }
 }

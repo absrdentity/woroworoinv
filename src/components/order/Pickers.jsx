@@ -140,6 +140,9 @@ export function PackagePicker({ value, onChange }) {
           <strong>{p.name}</strong>
           <span className="pick__price">{formatIDR(p.price)}</span>
           <small>{p.quota >= FEATURES.length ? 'Semua fitur' : `Pilih ${p.quota} fitur`}</small>
+          <small className="pick__dur">
+            <Icon name="clock" size={11} /> Link aktif {p.active}
+          </small>
           {p.popular && <span className="pick__tag">Populer</span>}
         </label>
       ))}
