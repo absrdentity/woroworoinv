@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { THEMES, EVENT_TYPES, FEATURES } from '../../shared/catalog.js';
 import Icon from './Icon.jsx';
+import Fx from './invitation/Fx.jsx';
+import CoverArt from './invitation/CoverArt.jsx';
+import Names from './invitation/Names.jsx';
+import { themeStyle } from './invitation/themeVars.js';
+import '../invitation.css';
 
 const DEFAULT_DATE = '2027-02-14';
 
@@ -115,7 +120,7 @@ function Countdown({ target, T }) {
     [c.s, T.s],
   ];
   return (
-    <div className="inv-sec">
+    <div className="inv-sec rv">
       <h4>{T.countdown}</h4>
       <div className="inv-count">
         {cells.map(([v, l]) => (
@@ -166,9 +171,31 @@ function FakeQR({ seed }) {
   );
 }
 
+const DESK_W = 1200;
+const DESK_H = 700;
+
+/** Skala bingkai desktop mengikuti lebar kontainernya. */
+function useFitScale(ref, base) {
+  const [scale, setScale] = useState(0.5);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const update = () => {
+      const w = el.clientWidth || base;
+      setScale(Math.max(0.2, Math.min(1.25, w / base)));
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, base]);
+  return scale;
+}
+
 /**
- * Pratinjau undangan digital berbentuk layar ponsel.
- * Hanya menampilkan bagian yang fiturnya aktif (prop `features`).
+ * Pratinjau undangan digital: `device="phone"` (layar ponsel) atau `device="desktop"`
+ * (bingkai browser, cover di kiri dan isi di kanan). Hanya bagian yang fiturnya aktif yang tampil.
  */
 export default function InvitationPreview({
   features = [],
@@ -177,10 +204,12 @@ export default function InvitationPreview({
   data = {},
   guest = '',
   height = 620,
+  device = 'phone',
 }) {
   const theme = THEMES.find((t) => t.id === themeId) || THEMES[0];
   const ev = EVENT_TYPES.find((e) => e.id === eventTypeId) || EVENT_TYPES[0];
   const has = (id) => features.includes(id);
+  const desktop = device === 'desktop';
 
   const [lang, setLang] = useState('id');
   const [playing, setPlaying] = useState(false);
@@ -198,8 +227,10 @@ export default function InvitationPreview({
   const L = multilang ? lang : 'id';
   const T = STR[L];
 
-  const screenRef = useRef(null);
+  const scrollRef = useRef(null);
   const bodyRef = useRef(null);
+  const wrapRef = useRef(null);
+  const scale = useFitScale(wrapRef, DESK_W);
 
   const name1 = (data.name1 || '').trim() || 'Raka';
   const name2 = ev.double ? (data.name2 || '').trim() || 'Ayu' : '';
@@ -223,9 +254,7 @@ export default function InvitationPreview({
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  const url = has('custom_domain')
-    ? `${slug.replace(/-/g, '')}.com`
-    : `woroworoinv.vercel.app/u/${slug}`;
+  const url = has('custom_domain') ? `${slug.replace(/-/g, '')}.com` : `woroworoinv.vercel.app/u/${slug}`;
 
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venue} ${address}`)}`;
   const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
@@ -240,9 +269,10 @@ export default function InvitationPreview({
   const guestLabel = has('guestname') && guest.trim() ? guest.trim() : T.toGeneric;
 
   const openInvitation = () => {
-    const screen = screenRef.current;
+    const sc = scrollRef.current;
     const body = bodyRef.current;
-    if (screen && body) screen.scrollTo({ top: body.offsetTop, behavior: 'smooth' });
+    if (!sc) return;
+    sc.scrollTo({ top: desktop ? 340 : body ? body.offsetTop : 600, behavior: 'smooth' });
   };
 
   const submitWish = (e) => {
@@ -264,52 +294,70 @@ export default function InvitationPreview({
 
   const hiddenFeatures = FEATURES.filter((f) => has(f.id) && !f.visible);
 
-  const style = {
-    '--t-bg': theme.vars.bg,
-    '--t-ink': theme.vars.ink,
-    '--t-accent': theme.vars.accent,
-    '--t-soft': theme.vars.soft,
-    '--t-line': theme.vars.line,
-    height,
-  };
+  // animasi muncul saat di-scroll (reveal) — diulang saat tema/perangkat/fitur berubah
+  const featKey = features.join(',');
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return undefined;
+    const els = Array.from(root.querySelectorAll('.rv:not(.is-in)'));
+    if (typeof IntersectionObserver === 'undefined') {
+      els.forEach((e) => e.classList.add('is-in'));
+      return undefined;
+    }
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((en) => {
+          if (en.isIntersecting) {
+            en.target.classList.add('is-in');
+            io.unobserve(en.target);
+          }
+        }),
+      { root, threshold: 0.1 }
+    );
+    els.forEach((e) => io.observe(e));
+    return () => io.disconnect();
+  }, [themeId, device, featKey, lang]);
 
-  return (
-    <div className="phone" style={style}>
-      <div className="phone__notch" />
-      <div className="phone__bar">
-        <span className="phone__lock"><Icon name="lock" size={11} /></span>
-        <span className="phone__url">{url}</span>
-        {multilang && (
-          <button type="button" className="phone__lang" onClick={() => setLang(lang === 'id' ? 'en' : 'id')}>
-            {lang === 'id' ? 'EN' : 'ID'}
-          </button>
-        )}
-      </div>
+  const v = theme.vars;
+  const style = { ...themeStyle(theme), '--vh': `${DESK_H}px` };
 
-      <div className="phone__screen" ref={screenRef}>
-        {/* ---------- Cover ---------- */}
+  const screen = (
+    <div
+      className="inv"
+      data-tpl={theme.id}
+      data-device={device}
+      data-reveal={theme.reveal}
+      data-card={theme.card}
+      style={style}
+    >
+      <Fx kind={theme.effect} colors={v.fx} count={desktop ? 24 : 16} seed={theme.id} />
+      <div className="inv-scroll" ref={scrollRef} key={`${theme.id}-${device}`}>
         <section className="inv-cover">
-          <p className="inv-kicker">{ev.title}</p>
-          <h2 className="inv-names">{heading}</h2>
-          <p className="inv-date">{dateLabel}</p>
-          <div className="inv-to">
-            <span>{T.to}</span>
-            <b>{guestLabel}</b>
+          <div className="inv-cover__art">
+            <CoverArt kind={theme.cover} />
           </div>
-          <button type="button" className="inv-btn" onClick={openInvitation}>
-            <Icon name="mail" size={14} /> {T.open}
-          </button>
+          <div className="inv-cover__in">
+            <p className="inv-kicker">{ev.title}</p>
+            <Names text={heading} fx={theme.namesFx} />
+            <p className="inv-date">{dateLabel}</p>
+            <div className="inv-to">
+              <span>{T.to}</span>
+              <b>{guestLabel}</b>
+            </div>
+            <button type="button" className="inv-btn" onClick={openInvitation}>
+              <Icon name="mail" size={14} /> {T.open}
+            </button>
+          </div>
         </section>
 
-        {/* ---------- Isi ---------- */}
         <div ref={bodyRef} className="inv-body">
-          <div className="inv-sec">
+          <div className="inv-sec rv">
             <p className="inv-invite">{T.invite}</p>
           </div>
 
           {has('countdown') && <Countdown target={when.getTime()} T={T} />}
 
-          <div className="inv-sec">
+          <div className="inv-sec rv">
             <h4>{T.event}</h4>
             <p className="inv-strong">{dateLabel}</p>
             <p>{timeLabel}</p>
@@ -333,7 +381,7 @@ export default function InvitationPreview({
           </div>
 
           {has('love_story') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.story}</h4>
               <ul className="inv-timeline">
                 <li>
@@ -350,7 +398,7 @@ export default function InvitationPreview({
           )}
 
           {has('gallery') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.gallery}</h4>
               <div className="inv-gallery">
                 {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -363,7 +411,7 @@ export default function InvitationPreview({
           )}
 
           {has('video') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.video}</h4>
               <div className="inv-video">
                 <Icon name="play" size={26} fill="currentColor" strokeWidth={1} />
@@ -372,7 +420,7 @@ export default function InvitationPreview({
           )}
 
           {has('livestream') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.live}</h4>
               <p>{T.liveNote}</p>
               <button type="button" className="inv-btn">
@@ -382,7 +430,7 @@ export default function InvitationPreview({
           )}
 
           {has('rsvp') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.rsvp}</h4>
               {rsvpDone ? (
                 <p className="inv-ok">{T.sent}</p>
@@ -416,7 +464,7 @@ export default function InvitationPreview({
           )}
 
           {has('wishes') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.wishes}</h4>
               <form onSubmit={submitWish} className="inv-wishform">
                 <input
@@ -441,7 +489,7 @@ export default function InvitationPreview({
           )}
 
           {has('gift') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.gift}</h4>
               <p>{T.giftNote}</p>
               <div className="inv-card">
@@ -456,7 +504,7 @@ export default function InvitationPreview({
           )}
 
           {has('qr_checkin') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <h4>{T.qr}</h4>
               <FakeQR seed={`${slug}-${guest || 'tamu'}`} />
               <p className="inv-note">{T.qrNote}</p>
@@ -464,14 +512,14 @@ export default function InvitationPreview({
           )}
 
           {has('whatsapp_share') && (
-            <div className="inv-sec">
+            <div className="inv-sec rv">
               <a className="inv-btn" href={shareUrl} target="_blank" rel="noreferrer">
                 <Icon name="whatsapp" size={14} /> {T.share}
               </a>
             </div>
           )}
 
-          <div className="inv-sec inv-foot">
+          <div className="inv-sec inv-foot rv">
             <p>{T.thanks}</p>
             <h3>{heading}</h3>
             {hiddenFeatures.length > 0 && (
@@ -493,7 +541,7 @@ export default function InvitationPreview({
       {has('music') && (
         <button
           type="button"
-          className={`phone__music ${playing ? 'is-on' : ''}`}
+          className={`inv-music ${playing ? 'is-on' : ''}`}
           onClick={() => setPlaying((p) => !p)}
           aria-label={playing ? 'Jeda musik (demo)' : 'Putar musik (demo)'}
           title="Demo tombol musik"
@@ -501,6 +549,48 @@ export default function InvitationPreview({
           <Icon name={playing ? 'pause' : 'music'} size={18} />
         </button>
       )}
+    </div>
+  );
+
+  const langBtn = multilang && (
+    <button type="button" className="phone__lang" onClick={() => setLang(lang === 'id' ? 'en' : 'id')}>
+      {lang === 'id' ? 'EN' : 'ID'}
+    </button>
+  );
+
+  if (desktop) {
+    const barH = 34;
+    return (
+      <div className="browser-wrap" ref={wrapRef} style={{ height: (DESK_H + barH) * scale }}>
+        <div className="browser" style={{ width: DESK_W, height: DESK_H + barH, transform: `scale(${scale})` }}>
+          <div className="browser__bar" style={{ height: barH }}>
+            <span className="browser__dots">
+              <i /> <i /> <i />
+            </span>
+            <span className="phone__url">
+              <Icon name="lock" size={11} /> {url}
+            </span>
+            {langBtn}
+          </div>
+          <div className="browser__view" style={{ height: DESK_H }}>
+            {screen}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="phone" style={{ height }}>
+      <div className="phone__notch" />
+      <div className="phone__bar">
+        <span className="phone__lock">
+          <Icon name="lock" size={11} />
+        </span>
+        <span className="phone__url">{url}</span>
+        {langBtn}
+      </div>
+      {screen}
     </div>
   );
 }

@@ -1,4 +1,9 @@
 import { useState } from 'react';
+import Fx from '../invitation/Fx.jsx';
+import CoverArt from '../invitation/CoverArt.jsx';
+import Names from '../invitation/Names.jsx';
+import { themeStyle } from '../invitation/themeVars.js';
+import '../../invitation.css';
 import { EVENT_TYPES, FEATURES, PACKAGES, THEMES, formatIDR, getFeature, tierName } from '../../../shared/catalog.js';
 import Icon from '../Icon.jsx';
 
@@ -24,25 +29,84 @@ export function EventTypeChips({ value, onChange }) {
   );
 }
 
-export function ThemeChips({ value, onChange }) {
+/** Mini cover beranimasi (efek partikel + ornamen + efek nama) untuk kartu template. */
+export function MiniCover({ theme, eventTitle = 'Pernikahan' }) {
+  return (
+    <div className="inv mini" data-tpl={theme.id} data-card={theme.card} data-reveal={theme.reveal} style={themeStyle(theme)}>
+      <Fx kind={theme.effect} colors={theme.vars.fx} count={9} seed={`mini-${theme.id}`} />
+      <div className="inv-cover">
+        <div className="inv-cover__art">
+          <CoverArt kind={theme.cover} />
+        </div>
+        <div className="inv-cover__in">
+          <p className="inv-kicker">{eventTitle}</p>
+          <Names text="Raka & Ayu" fx={theme.namesFx} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TemplatePicker({ value, onChange, eventTypeId }) {
   return (
     <div className="field">
-      <span className="field__label">Tema</span>
-      <div className="chips" role="radiogroup" aria-label="Tema">
-        {THEMES.map((t) => (
-          <button
-            type="button"
-            key={t.id}
-            role="radio"
-            aria-checked={value === t.id}
-            className={`chip chip--theme${value === t.id ? ' is-on' : ''}`}
-            onClick={() => onChange(t.id)}
-          >
-            <i style={{ background: t.vars.accent }} />
-            {t.name}
-          </button>
-        ))}
+      <span className="field__label">Template ({THEMES.length})</span>
+      <div className="tpl-grid" role="radiogroup" aria-label="Template undangan">
+        {THEMES.map((t) => {
+          const on = value === t.id;
+          const fit = eventTypeId && t.best.includes(eventTypeId);
+          return (
+            <button
+              type="button"
+              key={t.id}
+              role="radio"
+              aria-checked={on}
+              className={`tpl${on ? ' is-on' : ''}`}
+              onClick={() => onChange(t.id)}
+            >
+              <MiniCover theme={t} />
+              <span className="tpl__meta">
+                <strong>{t.name}</strong>
+                <small>{t.mood}</small>
+                <small className="tpl__fx">
+                  <Icon name="sparkles" size={11} /> {t.effectLabel}
+                </small>
+                {fit && <em className="tpl__fit">Cocok untuk acara ini</em>}
+              </span>
+              {on && (
+                <span className="tpl__check">
+                  <Icon name="check" size={13} strokeWidth={3} />
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+export const ThemeChips = TemplatePicker;
+
+/** Pilih tampilan pratinjau: ponsel / desktop. */
+export function DeviceToggle({ value, onChange }) {
+  return (
+    <div className="seg" role="tablist" aria-label="Tampilan pratinjau">
+      {[
+        ['phone', 'Ponsel', 'smartphone'],
+        ['desktop', 'Desktop', 'monitor'],
+      ].map(([id, label, icon]) => (
+        <button
+          type="button"
+          key={id}
+          role="tab"
+          aria-selected={value === id}
+          className={`seg__btn${value === id ? ' is-on' : ''}`}
+          onClick={() => onChange(id)}
+        >
+          <Icon name={icon} size={15} /> {label}
+        </button>
+      ))}
     </div>
   );
 }

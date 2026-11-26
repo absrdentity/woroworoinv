@@ -3,6 +3,23 @@
  * Pemakaian: <Icon name="map-pin" size={18} />
  */
 const PATHS = {
+  smartphone: (
+    <>
+      <rect x="6" y="2" width="12" height="20" rx="2.5" />
+      <path d="M11 18.5h2" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+    </>
+  ),
+  maximize: (
+    <>
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+    </>
+  ),
   // ----- fitur undangan -----
   hourglass: (
     <>

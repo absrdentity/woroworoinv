@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { FEATURES, EVENT_TYPES, formatIDR, recommendPackage, tierName } from '../../shared/catalog.js';
+import { Link, useSearchParams } from 'react-router-dom';
+import { FEATURES, EVENT_TYPES, THEMES, formatIDR, recommendPackage, tierName } from '../../shared/catalog.js';
 import InvitationPreview from '../components/InvitationPreview.jsx';
 import Icon from '../components/Icon.jsx';
-import { EventTypeChips, FeatureToggle, ThemeChips } from '../components/order/Pickers.jsx';
+import { DeviceToggle, EventTypeChips, FeatureToggle, TemplatePicker } from '../components/order/Pickers.jsx';
 
 function useDemoState() {
   const [features, setFeatures] = useState(['countdown', 'maps', 'gallery', 'rsvp']);
-  const [themeId, setThemeId] = useState('sakura');
+  const [params] = useSearchParams();
+  const [themeId, setThemeId] = useState(THEMES.some((t) => t.id === params.get('tema')) ? params.get('tema') : 'sakura');
+  const [device, setDevice] = useState(params.get('tampilan') === 'desktop' ? 'desktop' : 'phone');
   const [eventTypeId, setEventTypeId] = useState('pernikahan');
   const [guest, setGuest] = useState('Bapak Andi & Keluarga');
   const [name1, setName1] = useState('Raka');
@@ -19,7 +21,7 @@ function useDemoState() {
   const orderUrl = `/pesan?paket=${rec.id}&fitur=${features.join(',')}&tema=${themeId}&acara=${eventTypeId}`;
 
   return {
-    features, setFeatures, themeId, setThemeId, eventTypeId, setEventTypeId,
+    features, setFeatures, themeId, setThemeId, device, setDevice, eventTypeId, setEventTypeId,
     guest, setGuest, name1, setName1, name2, setName2, toggle, rec, ev, orderUrl,
   };
 }
@@ -31,7 +33,7 @@ function Controls({ s }) {
       <section className="panel">
         <h2 className="panel__title">Tampilan</h2>
         <EventTypeChips value={s.eventTypeId} onChange={s.setEventTypeId} />
-        <ThemeChips value={s.themeId} onChange={s.setThemeId} />
+        <TemplatePicker value={s.themeId} onChange={s.setThemeId} eventTypeId={s.eventTypeId} />
         <div className="field-row">
           <label className="field">
             <span className="field__label">{s.ev.double ? 'Nama pria' : 'Nama'}</span>
@@ -78,7 +80,7 @@ function Controls({ s }) {
   );
 }
 
-function Phone({ s, height }) {
+function Phone({ s, height, device }) {
   return (
     <InvitationPreview
       features={s.features}
@@ -87,6 +89,7 @@ function Phone({ s, height }) {
       guest={s.guest}
       data={{ name1: s.name1, name2: s.name2 }}
       height={height}
+      device={device || s.device}
     />
   );
 }
@@ -107,7 +110,7 @@ function DemoDesktop() {
   return (
     <div className="container demo">
       <PageHead />
-      <div className="demo__grid">
+      <div className={`demo__grid${s.device === 'desktop' ? ' demo__grid--wide' : ''}`}>
         <div className="demo__controls">
           <Controls s={s} />
           <section className="panel panel--accent">
@@ -126,8 +129,11 @@ function DemoDesktop() {
         </div>
         <div className="demo__phone">
           <div className="sticky">
+            <DeviceToggle value={s.device} onChange={s.setDevice} />
             <Phone s={s} height={680} />
-            <p className="small muted center">Gulir di dalam layar ponsel untuk melihat seluruh undangan.</p>
+            <p className="small muted center">
+              Gulir di dalam {s.device === 'desktop' ? 'jendela browser' : 'layar ponsel'} untuk melihat seluruh undangan.
+            </p>
           </div>
         </div>
       </div>
@@ -171,7 +177,7 @@ function DemoMobile() {
           <Controls s={s} />
         ) : (
           <div className="mdemo__phone">
-            <Phone s={s} height={600} />
+            <Phone s={s} height={600} device="phone" />
           </div>
         )}
       </div>

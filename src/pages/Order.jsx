@@ -11,7 +11,7 @@ import {
   FeaturePicker,
   PackagePicker,
   SummaryList,
-  ThemeChips,
+  TemplatePicker,
 } from '../components/order/Pickers.jsx';
 import { useOrder } from '../lib/useOrder.js';
 import { useAdmin } from '../lib/config.jsx';
@@ -58,8 +58,26 @@ function Panel({ n, title, children }) {
   );
 }
 
+function DesktopModal({ o, onClose }) {
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-label="Pratinjau versi desktop">
+      <button type="button" className="modal__backdrop" onClick={onClose} aria-label="Tutup" />
+      <div className="modal__panel">
+        <div className="sheet__head">
+          <strong>Pratinjau versi desktop</strong>
+          <button type="button" className="iconbtn" onClick={onClose} aria-label="Tutup">
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+        <InvitationPreview features={o.features} themeId={o.themeId} eventTypeId={o.eventTypeId} data={o.event} guest="Nama Tamu" device="desktop" />
+      </div>
+    </div>
+  );
+}
+
 function OrderDesktop() {
   const o = useOrder();
+  const [deskOpen, setDeskOpen] = useState(false);
   const { isAdmin } = useAdmin();
   const canPay = !!o.cfg.clientKey;
 
@@ -90,7 +108,7 @@ function OrderDesktop() {
 
           <Panel n="3" title="Tema dan data acara">
             <EventTypeChips value={o.eventTypeId} onChange={o.setEventTypeId} />
-            <ThemeChips value={o.themeId} onChange={o.setThemeId} />
+            <TemplatePicker value={o.themeId} onChange={o.setThemeId} eventTypeId={o.eventTypeId} />
             <EventForm ev={o.ev} event={o.event} setEv={o.setEv} />
           </Panel>
 
@@ -136,9 +154,13 @@ function OrderDesktop() {
               guest="Nama Tamu"
               height={540}
             />
+            <button type="button" className="btn btn--ghost btn--block" onClick={() => setDeskOpen(true)}>
+              <Icon name="monitor" size={16} /> Lihat versi desktop
+            </button>
           </div>
         </aside>
       </div>
+      {deskOpen && <DesktopModal o={o} onClose={() => setDeskOpen(false)} />}
     </div>
   );
 }
@@ -282,7 +304,7 @@ function OrderMobile() {
           <section className="panel">
             <h1 className="panel__title">Tema dan data acara</h1>
             <EventTypeChips value={o.eventTypeId} onChange={o.setEventTypeId} />
-            <ThemeChips value={o.themeId} onChange={o.setThemeId} />
+            <TemplatePicker value={o.themeId} onChange={o.setThemeId} eventTypeId={o.eventTypeId} />
             <EventForm ev={o.ev} event={o.event} setEv={o.setEv} />
           </section>
         )}

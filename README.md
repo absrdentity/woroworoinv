@@ -6,7 +6,11 @@ React + Vite, pembayaran **Midtrans Snap**, siap di-deploy ke **Vercel**.
 
 - **Paket bertingkat** (Basic, Standard, Premium, Exclusive): semakin mahal paket, semakin banyak fitur
   yang terbuka dan semakin besar kuota fitur yang bisa dipilih (19 fitur).
-- **Demo live**: pratinjau undangan berbentuk layar ponsel yang berubah real-time.
+- **Demo live**: pratinjau undangan yang berubah real-time, dengan pilihan tampilan **Ponsel** atau **Desktop**
+  (bingkai browser: cover tetap di kiri, isi undangan bergulir di kanan).
+- **9 template** dengan efek berbeda-beda (kelopak sakura, dedaunan, kilau emas, bintang & meteor,
+  gelembung & ombak, hati melayang, aurora, konfeti & balon, bentuk geometris). Tiap template punya
+  font, ornamen cover animasi, efek nama, dan animasi muncul saat di-scroll sendiri.
 - **Dua tampilan terpisah** (otomatis berdasarkan lebar layar, batas 820px):
   - **Desktop**: header menu atas, pesan 2 kolom dengan ringkasan sticky, demo berdampingan.
   - **Mobile**: header ringkas + navigasi bawah, pesan berupa wizard 4 langkah dengan bilah total
@@ -70,6 +74,8 @@ shared/catalog.js        paket, fitur, tema, validasi (dipakai frontend & API)
 src/
   pages/                 Home, Demo, Order, Success, Admin
   components/            Icon, InvitationPreview, Navbar (header + bottom nav), Footer, order/Pickers
+  components/invitation/ Fx (efek partikel), CoverArt (ornamen SVG), Names (efek nama), themeVars
+  invitation.css         gaya undangan: bingkai ponsel/desktop, template, efek, animasi
   lib/                   config (konteks), admin, midtrans, useOrder
   hooks/useMediaQuery.js pemilih tampilan desktop/mobile
 vercel.json              rewrite SPA (React Router)
@@ -95,7 +101,10 @@ npx vercel dev                 # frontend + /api di http://localhost:3000
 
 ## Menyesuaikan
 
-- **Harga, kuota, fitur, tema**: `shared/catalog.js` (harga hanya contoh).
+- **Harga, kuota, fitur, template**: `shared/catalog.js` (harga hanya contoh).
+- **Template baru**: tambah satu objek di `THEMES` (warna, font, `effect`, `cover`, `reveal`, `namesFx`, `card`).
+  Font Google dimuat di `index.html` (butuh internet; tanpa itu tampil dengan font cadangan).
+  Pratinjau menghormati pengaturan "kurangi gerakan" milik perangkat.
 - **Warna & gaya**: variabel di `:root` pada `src/index.css`.
 - **Ikon**: tambah/ubah path di `src/components/Icon.jsx`.
 

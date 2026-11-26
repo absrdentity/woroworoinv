@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { PACKAGES, FEATURES, formatIDR, tierName } from '../../shared/catalog.js';
+import { PACKAGES, FEATURES, THEMES, formatIDR, tierName } from '../../shared/catalog.js';
 import InvitationPreview from '../components/InvitationPreview.jsx';
 import Icon from '../components/Icon.jsx';
+import { MiniCover } from '../components/order/Pickers.jsx';
 
 const HERO_FEATURES = ['countdown', 'maps', 'calendar', 'gallery', 'rsvp', 'guestname', 'wishes', 'music'];
 
@@ -148,6 +149,48 @@ export default function Home({ isMobile }) {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ---------- Galeri template ---------- */}
+      <section className="section" id="template">
+        <div className="container">
+          <div className="section__head">
+            <span className="eyebrow">Template</span>
+            <h2>{THEMES.length} template, masing-masing dengan efek sendiri</h2>
+            <p className="muted">
+              Kelopak berjatuhan, kilau emas, bintang berkelip, gelembung, konfeti, dan lainnya. Klik untuk mencoba di demo.
+            </p>
+          </div>
+          <div className="tpl-grid tpl-grid--gallery">
+            {THEMES.map((t) => (
+              <Link key={t.id} to={`/demo?tema=${t.id}`} className="tpl">
+                <MiniCover theme={t} />
+                <span className="tpl__meta">
+                  <strong>{t.name}</strong>
+                  <small>{t.mood}</small>
+                  <small className="tpl__fx">
+                    <Icon name="sparkles" size={11} /> {t.effectLabel}
+                  </small>
+                </span>
+              </Link>
+            ))}
+          </div>
+          {!isMobile && (
+            <div className="tpl-desktop">
+              <div className="tpl-desktop__copy">
+                <span className="eyebrow">Dua tampilan</span>
+                <h3>Nyaman dibuka di ponsel maupun desktop</h3>
+                <p className="muted">
+                  Tamu yang membuka lewat laptop melihat tata letak dua kolom: cover tetap di kiri, isi undangan bergulir di kanan.
+                </p>
+                <Link className="btn btn--ghost" to="/demo?tema=royal&tampilan=desktop">
+                  <Icon name="monitor" size={16} /> Lihat versi desktop
+                </Link>
+              </div>
+              <InvitationPreview features={HERO_FEATURES} themeId="royal" guest="Keluarga Besar Anda" device="desktop" />
+            </div>
+          )}
         </div>
       </section>
 
