@@ -59,7 +59,7 @@ export const PACKAGES = [
     durationDays: 90,
     popular: true,
     tagline: 'Paling banyak dipilih pasangan.',
-    includes: ['Semua yang ada di Basic', 'Pilih dari 9 template', 'Revisi 3x', 'Link aktif 3 bulan'],
+    includes: ['Semua yang ada di Basic', 'Pilih dari 8 template', 'Revisi 3x', 'Link aktif 3 bulan'],
   },
   {
     id: 'premium',
@@ -88,10 +88,10 @@ export const PACKAGES = [
 /**
  * Template undangan. Setiap template punya tipografi, efek partikel, ornamen cover,
  * animasi kemunculan section dan efek nama sendiri (dirender oleh src/components/invitation/*).
- *  effect : petal | leaf | sparkle | star | bubble | heart | orb | confetti | shape
- *  cover  : blossom | leaves | frame | moon | waves | roses | aurora | balloons | geo
+ *  effect : petal | leaf | sparkle | star | bubble | heart | confetti | shape
+ *  cover  : blossom | leaves | frame | moon | waves | roses | balloons | geo
  *  reveal : rise | fade | zoom | blur | slide | flip | wipe | pop
- *  namesFx: rise | wipe | shimmer | glow | float | pulse | gradient | pop | track
+ *  namesFx: rise | wipe | shimmer | glow | float | pulse | pop | track
  *  card   : soft | outline | glass | flat | solid
  */
 export const THEMES = [
@@ -178,20 +178,6 @@ export const THEMES = [
     card: 'soft',
     fonts: { head: "'Playfair Display', serif", body: "'Plus Jakarta Sans', sans-serif", name: "'Great Vibes', cursive" },
     vars: { bg: '#3A0F1F', ink: '#FFE6EB', accent: '#FF7A93', soft: '#531A2D', line: '#7A2E45', on: '#3A0F1F', grad: 'radial-gradient(110% 80% at 50% 10%,#6A1F38 0%,#3A0F1F 72%)', fx: ['#FF7A93', '#FF9DB0', '#FFB8C6', '#E5486B'] },
-  },
-  {
-    id: 'aurora',
-    name: 'Aurora Glow',
-    mood: 'Modern & memukau',
-    best: ['pernikahan', 'ulangtahun', 'khitanan'],
-    effect: 'orb',
-    effectLabel: 'Cahaya aurora mengalir',
-    cover: 'aurora',
-    reveal: 'wipe',
-    namesFx: 'gradient',
-    card: 'glass',
-    fonts: { head: "'Syne', sans-serif", body: "'Plus Jakarta Sans', sans-serif", name: "'Syne', sans-serif" },
-    vars: { bg: '#0F1226', ink: '#EEF0FF', accent: '#A78BFA', soft: '#1A1E3F', line: '#3A3F7A', on: '#0F1226', grad: 'linear-gradient(180deg,#0B0E22 0%,#141838 100%)', fx: ['#7C5CFF', '#2DD4BF', '#F472B6', '#60A5FA'] },
   },
   {
     id: 'confetti',
@@ -295,4 +281,152 @@ export function slugify(...names) {
     .slice(0, 40)
     .replace(/-+$/g, '');
   return base || 'undangan';
+}
+
+/**
+ * Musik latar custom (fitur "music"). Tanpa upload file: pelanggan memberi LINK.
+ * Didukung: YouTube (watch / youtu.be / shorts), file audio langsung (https ... .mp3/.m4a/.ogg/.wav),
+ * Google Drive (bagikan "Siapa saja yang memiliki link"), Dropbox.
+ * Dipakai di frontend (validasi cepat) dan di API (validasi ulang).
+ */
+export function parseMusic(raw) {
+  const url = String(raw ?? '').trim();
+  if (!url) return { ok: true, empty: true };
+  if (url.length > 400) return { ok: false, error: 'Link musik terlalu panjang.' };
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return { ok: false, error: 'Link musik tidak valid. Tempel link lengkap yang diawali https://' };
+  }
+  if (u.protocol !== 'https:') return { ok: false, error: 'Link musik harus diawali https://' };
+  const host = u.hostname.toLowerCase().replace(/^(www|m)\./, '');
+
+  let yt = null;
+  const isYt = host === 'youtu.be' || host === 'youtube.com' || host === 'music.youtube.com';
+  if (host === 'youtu.be') yt = u.pathname.slice(1).split('/')[0];
+  else if (host === 'youtube.com' || host === 'music.youtube.com') {
+    if (u.pathname === '/watch') yt = u.searchParams.get('v');
+    else {
+      const m = /^\/(?:shorts|embed|live)\/([^/?]+)/.exec(u.pathname);
+      if (m) yt = m[1];
+    }
+  }
+  if (isYt) {
+    if (!/^[A-Za-z0-9_-]{11}$/.test(yt || '')) return { ok: false, error: 'Link YouTube tidak dikenali. Gunakan link video (bukan playlist/channel).' };
+    return { ok: true, type: 'youtube', url, ytId: yt, source: 'YouTube' };
+  }
+  if (host === 'drive.google.com') {
+    const m = /\/file\/d\/([A-Za-z0-9_-]+)/.exec(u.pathname);
+    const id = m ? m[1] : u.searchParams.get('id');
+    if (!id || !/^[A-Za-z0-9_-]{10,80}$/.test(id)) return { ok: false, error: 'Link Google Drive tidak dikenali. Gunakan link "Bagikan" file audio.' };
+    return { ok: true, type: 'audio', url: `https://drive.google.com/uc?export=download&id=${id}`, source: 'Google Drive' };
+  }
+  if (host === 'dropbox.com') {
+    u.searchParams.delete('dl');
+    u.searchParams.set('raw', '1');
+    return { ok: true, type: 'audio', url: u.toString(), source: 'Dropbox' };
+  }
+  return { ok: true, type: 'audio', url: u.toString(), source: 'File audio' };
+}
+
+/** { url, title } dari form -> objek musik tersimpan, atau null bila kosong. Melempar pesan error bila tidak valid. */
+export function normalizeMusic(input) {
+  if (!input || !String(input.url ?? '').trim()) return null;
+  const r = parseMusic(input.url);
+  if (!r.ok) throw new Error(r.error);
+  const title = String(input.title ?? '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
+  return { type: r.type, url: r.url, ...(r.ytId ? { ytId: r.ytId } : {}), title };
+}
+
+/* ============================================================
+   Isi undangan (teks & media) yang diinput pelanggan
+   ============================================================ */
+export const CONTENT_LIMITS = { gallery: 6, story: 6, accounts: 4, imageBytes: 220000, uploadsPerInvitation: 10 };
+const IMG_ID = /^[a-f0-9]{16}$/;
+export const isImageId = (v) => IMG_ID.test(String(v || ''));
+
+const txt = (v, n) =>
+  String(v ?? '')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '')
+    .trim()
+    .slice(0, n);
+const httpsUrl = (v, n = 300) => {
+  try {
+    const u = new URL(String(v || '').trim());
+    const out = u.toString();
+    return u.protocol === 'https:' && out.length <= n ? out : '';
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Membersihkan & membatasi isi undangan. Hanya bagian yang fiturnya aktif yang disimpan.
+ * Gambar: id hasil upload server (16 hex). `allowDataImages` hanya untuk pratinjau lokal (demo).
+ */
+export function cleanContent(raw, features = [], { allowDataImages = false } = {}) {
+  const c = raw && typeof raw === 'object' ? raw : {};
+  const has = (id) => features.includes(id);
+  const arr = (v) => (Array.isArray(v) ? v : []);
+  const img = (v) => {
+    const s = String(v || '');
+    if (IMG_ID.test(s)) return s;
+    return allowDataImages && /^data:image\/(jpeg|png|webp);base64,/.test(s) ? s : '';
+  };
+  const out = {
+    intro: txt(c.intro, 300),
+    family1: txt(c.family1, 100),
+    family2: txt(c.family2, 100),
+    note: txt(c.note, 200),
+    cover: img(c.cover),
+  };
+  if (has('multilang')) out.introEn = txt(c.introEn, 300);
+  if (has('maps')) out.mapsUrl = httpsUrl(c.mapsUrl);
+  if (has('gallery')) out.gallery = arr(c.gallery).map(img).filter(Boolean).slice(0, CONTENT_LIMITS.gallery);
+  if (has('love_story')) {
+    out.story = arr(c.story)
+      .map((r) => ({ when: txt(r && r.when, 20), text: txt(r && r.text, 200) }))
+      .filter((r) => r.text)
+      .slice(0, CONTENT_LIMITS.story);
+  }
+  if (has('gift')) {
+    const g = c.gift && typeof c.gift === 'object' ? c.gift : {};
+    out.gift = {
+      accounts: arr(g.accounts)
+        .map((a) => ({ bank: txt(a && a.bank, 30), number: txt(a && a.number, 40), name: txt(a && a.name, 60) }))
+        .filter((a) => a.number)
+        .slice(0, CONTENT_LIMITS.accounts),
+      address: txt(g.address, 160),
+      qris: img(g.qris),
+    };
+  }
+  if (has('video')) {
+    const r = parseMusic(c.videoUrl);
+    out.videoId = r.ok && r.type === 'youtube' ? r.ytId : '';
+    out.videoUrl = out.videoId ? String(c.videoUrl).trim().slice(0, 200) : '';
+  }
+  if (has('livestream')) {
+    const l = c.live && typeof c.live === 'object' ? c.live : {};
+    out.live = { url: httpsUrl(l.url), note: txt(l.note, 120), when: txt(l.when, 60) };
+  }
+  if (has('custom_domain')) {
+    const d = txt(c.domain, 80).toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    out.domain = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(d) ? d : '';
+  }
+  return out;
+}
+
+/** Semua id gambar yang dirujuk oleh sebuah isi undangan. */
+export function contentImageIds(content) {
+  const c = content || {};
+  return [c.cover, ...(c.gallery || []), c.gift && c.gift.qris].filter((x) => isImageId(x));
+}
+
+/** Daftar tamu (nama + nomor WA opsional) untuk tautan personal & kirim WhatsApp. */
+export function cleanGuests(raw) {
+  return (Array.isArray(raw) ? raw : [])
+    .map((g) => ({ name: txt(g && g.name, 60), phone: String((g && g.phone) || '').replace(/[^\d]/g, '').slice(0, 16) }))
+    .filter((g) => g.name)
+    .slice(0, 500);
 }

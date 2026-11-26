@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ContentEditor from '../components/order/ContentEditor.jsx';
 import { Link } from 'react-router-dom';
 import { formatIDR } from '../../shared/catalog.js';
 import InvitationPreview from '../components/InvitationPreview.jsx';
@@ -9,6 +10,7 @@ import {
   EventForm,
   EventTypeChips,
   FeaturePicker,
+  MusicField,
   PackagePicker,
   SummaryList,
   TemplatePicker,
@@ -69,7 +71,9 @@ function DesktopModal({ o, onClose }) {
             <Icon name="x" size={20} />
           </button>
         </div>
-        <InvitationPreview features={o.features} themeId={o.themeId} eventTypeId={o.eventTypeId} data={o.event} guest="Nama Tamu" device="desktop" />
+        <InvitationPreview features={o.features} themeId={o.themeId} eventTypeId={o.eventTypeId} data={o.event}
+              music={o.musicData}
+              content={o.contentData} guest="Nama Tamu" device="desktop" />
       </div>
     </div>
   );
@@ -110,6 +114,11 @@ function OrderDesktop() {
             <EventTypeChips value={o.eventTypeId} onChange={o.setEventTypeId} />
             <TemplatePicker value={o.themeId} onChange={o.setThemeId} eventTypeId={o.eventTypeId} />
             <EventForm ev={o.ev} event={o.event} setEv={o.setEv} />
+            {o.hasMusic && <MusicField music={o.music} setMus={o.setMus} />}
+            <details className="ce-fold" data-testid="content-fold">
+              <summary>Isi undangan (teks) · bisa diisi sekarang atau nanti</summary>
+              <ContentEditor features={o.features} value={o.content} onChange={o.setContent} ev={o.ev} uploader={null} />
+            </details>
           </Panel>
 
           <Panel n="4" title="Data pemesan">
@@ -155,6 +164,8 @@ function OrderDesktop() {
               themeId={o.themeId}
               eventTypeId={o.eventTypeId}
               data={o.event}
+              music={o.musicData}
+              content={o.contentData}
               guest="Nama Tamu"
               height={540}
             />
@@ -199,6 +210,8 @@ function PreviewSheet({ o, onClose }) {
             themeId={o.themeId}
             eventTypeId={o.eventTypeId}
             data={o.event}
+              music={o.musicData}
+              content={o.contentData}
             guest="Nama Tamu"
             height={h}
           />
@@ -310,6 +323,11 @@ function OrderMobile() {
             <EventTypeChips value={o.eventTypeId} onChange={o.setEventTypeId} />
             <TemplatePicker value={o.themeId} onChange={o.setThemeId} eventTypeId={o.eventTypeId} />
             <EventForm ev={o.ev} event={o.event} setEv={o.setEv} />
+            {o.hasMusic && <MusicField music={o.music} setMus={o.setMus} />}
+            <details className="ce-fold" data-testid="content-fold">
+              <summary>Isi undangan (teks) · bisa diisi sekarang atau nanti</summary>
+              <ContentEditor features={o.features} value={o.content} onChange={o.setContent} ev={o.ev} uploader={null} />
+            </details>
           </section>
         )}
 

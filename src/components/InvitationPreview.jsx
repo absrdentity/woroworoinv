@@ -44,6 +44,7 @@ const STR = {
     gift: 'Amplop Digital',
     giftNote: 'Doa restu Anda sudah cukup. Bila berkenan berbagi tanda kasih:',
     copy: 'Salin No. Rekening',
+    giftAddr: 'Kirim kado ke',
     copied: 'Tersalin',
     qr: 'QR Check-in Tamu',
     qrNote: 'Tunjukkan QR ini kepada penerima tamu.',
@@ -84,6 +85,7 @@ const STR = {
     gift: 'Digital Gift',
     giftNote: 'Your presence is the greatest gift. Should you wish to share a token of love:',
     copy: 'Copy Account Number',
+    giftAddr: 'Send gifts to',
     copied: 'Copied',
     qr: 'Guest Check-in QR',
     qrNote: 'Show this QR code at the reception desk.',
@@ -208,6 +210,10 @@ export default function InvitationPreview({
   device = 'phone', // 'phone' | 'desktop' | 'full' (layar penuh: undangan asli di /u/slug)
   live = null, // { wishes, sendWish(name,msg), sendRsvp(name,attend) } untuk undangan asli
   showExtras = true,
+  music = null, // { type:'audio'|'youtube', url, ytId?, title } musik latar custom
+  content = null, // isi undangan dari pelanggan (lihat cleanContent)
+  mediaSlug = '', // slug untuk memuat foto dari /api/media
+  placeholders = null, // tampilkan contoh bila bagian belum diisi (bawaan: tidak di layar penuh)
 }) {
   const theme = THEMES.find((t) => t.id === themeId) || THEMES[0];
   const ev = EVENT_TYPES.find((e) => e.id === eventTypeId) || EVENT_TYPES[0];
@@ -216,13 +222,16 @@ export default function InvitationPreview({
   const full = device === 'full';
   const layout = full ? (wide ? 'desktop' : 'phone') : device;
   const desktop = layout === 'desktop';
+  const C = content || {};
+  const ph = placeholders == null ? !full : placeholders;
+  const src = (ref) => (!ref ? '' : String(ref).startsWith('data:') ? ref : mediaSlug ? `/api/media?s=${encodeURIComponent(mediaSlug)}&i=${ref}` : '');
 
   const [lang, setLang] = useState('id');
   const [playing, setPlaying] = useState(false);
   const [attend, setAttend] = useState('yes');
   const [rsvpName, setRsvpName] = useState('');
   const [rsvpDone, setRsvpDone] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState('');
   const [wishText, setWishText] = useState('');
   const [wishes, setWishes] = useState(() =>
     live
@@ -233,6 +242,13 @@ export default function InvitationPreview({
         ]
   );
   const [sending, setSending] = useState(false);
+  const [lightbox, setLightbox] = useState('');
+  const [videoOn, setVideoOn] = useState(false);
+  const [qrFail, setQrFail] = useState(false);
+  const [ytLoaded, setYtLoaded] = useState(false);
+  const [musicErr, setMusicErr] = useState(false);
+  const audioRef = useRef(null);
+  const ytRef = useRef(null);
 
   const multilang = has('multilang');
   const L = multilang ? lang : 'id';
@@ -265,9 +281,12 @@ export default function InvitationPreview({
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  const url = has('custom_domain') ? `${slug.replace(/-/g, '')}.com` : `woroworoinv.vercel.app/u/${slug}`;
+  const url = has('custom_domain')
+    ? C.domain || `${slug.replace(/-/g, '')}.com`
+    : `woroworoinv.vercel.app/u/${mediaSlug || slug}`;
 
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venue} ${address}`)}`;
+  const mapsUrl =
+    (has('maps') && C.mapsUrl) || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${venue} ${address}`)}`;
   const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
     `${ev.title} ${heading}`
   )}&dates=${toCal(when)}/${toCal(new Date(when.getTime() + 3 * 3600000))}&ctz=Asia/Jakarta&location=${encodeURIComponent(
@@ -279,7 +298,39 @@ export default function InvitationPreview({
 
   const guestLabel = has('guestname') && guest.trim() ? guest.trim() : T.toGeneric;
 
+  const track = has('music') && music && music.url ? music : null;
+  const trackKey = track ? track.url : '';
+  useEffect(() => {
+    setPlaying(false);
+    setYtLoaded(false);
+    setMusicErr(false);
+  }, [trackKey]);
+
+  const ytCmd = (func) => {
+    const w = ytRef.current && ytRef.current.contentWindow;
+    if (w) w.postMessage(JSON.stringify({ event: 'command', func, args: [] }), '*');
+  };
+  const setPlay = (want) => {
+    setPlaying(want);
+    if (!track) return;
+    if (track.type === 'audio') {
+      const a = audioRef.current;
+      if (!a) return;
+      if (want) {
+        setMusicErr(false);
+        a.play().catch(() => {
+          setPlaying(false);
+          setMusicErr(true);
+        });
+      } else a.pause();
+    } else if (want) {
+      if (!ytLoaded) setYtLoaded(true);
+      else ytCmd('playVideo');
+    } else ytCmd('pauseVideo');
+  };
+
   const openInvitation = () => {
+    if (track && !playing) setPlay(true); // tap "Buka Undangan" = interaksi pengguna, musik boleh mulai
     const sc = scrollRef.current;
     const body = bodyRef.current;
     if (!sc) return;
@@ -321,14 +372,14 @@ export default function InvitationPreview({
     setRsvpDone(true);
   };
 
-  const copyRek = async () => {
+  const copyText = async (text, key) => {
     try {
-      await navigator.clipboard.writeText('1234567890');
+      await navigator.clipboard.writeText(text);
     } catch {
-      /* diabaikan: hanya demo */
+      /* diabaikan: clipboard tidak tersedia */
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+    setCopied(key);
+    setTimeout(() => setCopied(''), 1800);
   };
 
   const hiddenFeatures = showExtras ? FEATURES.filter((f) => has(f.id) && !f.visible) : [];
@@ -376,6 +427,11 @@ export default function InvitationPreview({
             <CoverArt kind={theme.cover} />
           </div>
           <div className="inv-cover__in">
+            {C.cover && src(C.cover) && (
+              <div className="inv-photo">
+                <img src={src(C.cover)} alt="" />
+              </div>
+            )}
             <p className="inv-kicker">{ev.title}</p>
             <Names text={heading} fx={theme.namesFx} />
             <p className="inv-date">{dateLabel}</p>
@@ -391,7 +447,18 @@ export default function InvitationPreview({
 
         <div ref={bodyRef} className="inv-body">
           <div className="inv-sec rv">
-            <p className="inv-invite">{T.invite}</p>
+            <p className="inv-invite">{L === 'en' && C.introEn ? C.introEn : C.intro || T.invite}</p>
+            {(C.family1 || C.family2) && (
+              <p className="inv-family">
+                {C.family1}
+                {ev.double && C.family2 && (
+                  <>
+                    <br />&amp;<br />
+                    {C.family2}
+                  </>
+                )}
+              </p>
+            )}
           </div>
 
           {has('countdown') && <Countdown target={when.getTime()} T={T} />}
@@ -402,6 +469,7 @@ export default function InvitationPreview({
             <p>{timeLabel}</p>
             <p className="inv-strong inv-gap">{venue}</p>
             <p>{address}</p>
+            {C.note && <p className="inv-note inv-gap">{C.note}</p>}
             {has('maps') && (
               <>
                 <div className="inv-map" aria-hidden="true">
@@ -419,52 +487,89 @@ export default function InvitationPreview({
             )}
           </div>
 
-          {has('love_story') && (
+          {has('love_story') && (C.story && C.story.length ? C.story : ph ? [{ when: '2019', text: T.story1 }, { when: '2022', text: T.story2 }, { when: '2026', text: T.story3 }] : []).length > 0 && (
             <div className="inv-sec rv">
               <h4>{T.story}</h4>
               <ul className="inv-timeline">
-                <li>
-                  <b>2019</b> {T.story1}
-                </li>
-                <li>
-                  <b>2022</b> {T.story2}
-                </li>
-                <li>
-                  <b>2026</b> {T.story3}
-                </li>
+                {(C.story && C.story.length ? C.story : [{ when: '2019', text: T.story1 }, { when: '2022', text: T.story2 }, { when: '2026', text: T.story3 }]).map((r, i) => (
+                  <li key={i}>
+                    {r.when && <b>{r.when}</b>} {r.text}
+                  </li>
+                ))}
               </ul>
             </div>
           )}
 
-          {has('gallery') && (
+          {has('gallery') && ((C.gallery && C.gallery.length) || ph) && (
             <div className="inv-sec rv">
               <h4>{T.gallery}</h4>
               <div className="inv-gallery">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} style={{ opacity: 0.45 + (i % 3) * 0.2 }}>
-                    <Icon name="image" size={18} />
-                  </div>
-                ))}
+                {C.gallery && C.gallery.length
+                  ? C.gallery.map((g) => (
+                      <button type="button" key={g} className="inv-gal" onClick={() => setLightbox(g)} aria-label="Perbesar foto">
+                        <img src={src(g)} alt="" loading="lazy" />
+                      </button>
+                    ))
+                  : [0, 1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} style={{ opacity: 0.45 + (i % 3) * 0.2 }}>
+                        <Icon name="image" size={18} />
+                      </div>
+                    ))}
               </div>
             </div>
           )}
 
-          {has('video') && (
+          {has('video') && (C.videoId || ph) && (
             <div className="inv-sec rv">
               <h4>{T.video}</h4>
-              <div className="inv-video">
-                <Icon name="play" size={26} fill="currentColor" strokeWidth={1} />
-              </div>
+              {C.videoId ? (
+                <div className="inv-video inv-video--real">
+                  {videoOn ? (
+                    <iframe
+                      title="Video"
+                      allow="autoplay; encrypted-media; picture-in-picture"
+                      allowFullScreen
+                      src={`https://www.youtube-nocookie.com/embed/${C.videoId}?autoplay=1&rel=0`}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="inv-video__poster"
+                      aria-label="Putar video"
+                      onClick={() => {
+                        if (playing) setPlay(false); // jeda musik latar agar suara video terdengar
+                        setVideoOn(true);
+                      }}
+                      style={{ backgroundImage: `url(https://i.ytimg.com/vi/${C.videoId}/hqdefault.jpg)` }}
+                    >
+                      <span>
+                        <Icon name="play" size={26} fill="currentColor" strokeWidth={1} />
+                      </span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="inv-video">
+                  <Icon name="play" size={26} fill="currentColor" strokeWidth={1} />
+                </div>
+              )}
             </div>
           )}
 
-          {has('livestream') && (
+          {has('livestream') && ((C.live && C.live.url) || ph) && (
             <div className="inv-sec rv">
               <h4>{T.live}</h4>
-              <p>{T.liveNote}</p>
-              <button type="button" className="inv-btn">
-                <Icon name="radio" size={14} /> {T.liveBtn}
-              </button>
+              <p>{(C.live && C.live.note) || T.liveNote}</p>
+              {C.live && C.live.when && <p className="inv-strong">{C.live.when}</p>}
+              {C.live && C.live.url ? (
+                <a className="inv-btn" href={C.live.url} target="_blank" rel="noreferrer">
+                  <Icon name="radio" size={14} /> {T.liveBtn}
+                </a>
+              ) : (
+                <button type="button" className="inv-btn">
+                  <Icon name="radio" size={14} /> {T.liveBtn}
+                </button>
+              )}
             </div>
           )}
 
@@ -522,25 +627,52 @@ export default function InvitationPreview({
             </div>
           )}
 
-          {has('gift') && (
-            <div className="inv-sec rv">
-              <h4>{T.gift}</h4>
-              <p>{T.giftNote}</p>
-              <div className="inv-card">
-                <small>Bank Contoh</small>
-                <b>1234567890</b>
-                <small>a.n. {name1}</small>
-              </div>
-              <button type="button" className="inv-btn inv-btn--ghost" onClick={copyRek}>
-                {copied ? T.copied : T.copy}
-              </button>
-            </div>
-          )}
+          {has('gift') &&
+            (() => {
+              const g = C.gift || {};
+              const accs = g.accounts || [];
+              const real = accs.length || g.address || g.qris;
+              if (!real && !ph) return null;
+              const list = real ? accs : [{ bank: 'Bank Contoh', number: '1234567890', name: name1 }];
+              return (
+                <div className="inv-sec rv">
+                  <h4>{T.gift}</h4>
+                  <p>{T.giftNote}</p>
+                  {list.map((a, i) => (
+                    <div className="inv-card" key={i}>
+                      {a.bank && <small>{a.bank}</small>}
+                      <b>{a.number}</b>
+                      {a.name && <small>a.n. {a.name}</small>}
+                      <button type="button" className="inv-btn inv-btn--ghost" onClick={() => copyText(a.number, `a${i}`)}>
+                        {copied === `a${i}` ? T.copied : T.copy}
+                      </button>
+                    </div>
+                  ))}
+                  {g.qris && src(g.qris) && <img className="inv-qris" src={src(g.qris)} alt="QRIS" loading="lazy" />}
+                  {g.address && (
+                    <p className="inv-note inv-gap">
+                      {T.giftAddr}: {g.address}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
           {has('qr_checkin') && (
             <div className="inv-sec rv">
               <h4>{T.qr}</h4>
-              <FakeQR seed={`${slug}-${guest || 'tamu'}`} />
+              {qrFail ? (
+                <FakeQR seed={`${slug}-${guest || 'tamu'}`} />
+              ) : (
+                <img
+                  className="inv-qr inv-qr--img"
+                  alt="QR check-in"
+                  width="150"
+                  height="150"
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=6&data=${encodeURIComponent(`CHK:${mediaSlug || slug}:${guest.trim() || 'Tamu'}`)}`}
+                  onError={() => setQrFail(true)}
+                />
+              )}
               <p className="inv-note">{T.qrNote}</p>
             </div>
           )}
@@ -572,16 +704,54 @@ export default function InvitationPreview({
         </div>
       </div>
 
+      {lightbox && (
+        <div className="inv-lightbox" role="dialog" aria-modal="true" onClick={() => setLightbox('')}>
+          <img src={src(lightbox)} alt="" />
+          <button type="button" aria-label="Tutup" onClick={() => setLightbox('')}>
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+      )}
+
       {has('music') && (
         <button
           type="button"
           className={`inv-music ${playing ? 'is-on' : ''}`}
-          onClick={() => setPlaying((p) => !p)}
+          onClick={() => setPlay(!playing)}
           aria-label={playing ? 'Jeda musik (demo)' : 'Putar musik (demo)'}
           title="Demo tombol musik"
         >
           <Icon name={playing ? 'pause' : 'music'} size={18} />
         </button>
+      )}
+      {track && (playing || musicErr) && (
+        <span className={`inv-music__t${musicErr ? ' is-err' : ''}`}>
+          {musicErr ? 'Musik tidak bisa diputar' : track.title || 'Musik latar'}
+        </span>
+      )}
+      {track && track.type === 'audio' && (
+        <audio
+          ref={audioRef}
+          key={track.url}
+          src={track.url}
+          loop
+          preload="none"
+          onError={() => {
+            setPlaying(false);
+            setMusicErr(true);
+          }}
+        />
+      )}
+      {track && track.type === 'youtube' && ytLoaded && (
+        <iframe
+          ref={ytRef}
+          key={track.ytId}
+          className="inv-yt"
+          title="Musik latar"
+          allow="autoplay; encrypted-media"
+          tabIndex={-1}
+          src={`https://www.youtube-nocookie.com/embed/${track.ytId}?autoplay=1&loop=1&playlist=${track.ytId}&controls=0&playsinline=1&enablejsapi=1`}
+        />
       )}
     </div>
   );

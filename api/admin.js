@@ -159,6 +159,8 @@ export default async function handler(req, res) {
       const row = (inv) => ({
         ...inv,
         url: `${origin}/u/${inv.slug}`,
+        manageUrl: `${origin}/kelola/${inv.slug}?k=${inv.editKey}`,
+        priorityUntil: inv.features.includes('priority') ? inv.createdAt + 86400000 : null,
         status: statusOf(inv),
         daysLeft: daysLeft(inv),
       });

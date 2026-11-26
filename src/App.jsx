@@ -8,6 +8,7 @@ import Order from './pages/Order.jsx';
 import Success from './pages/Success.jsx';
 import Admin from './pages/Admin.jsx';
 import Invite from './pages/Invite.jsx';
+import Manage from './pages/Manage.jsx';
 import { useIsMobile } from './hooks/useMediaQuery.js';
 
 function ScrollToTop() {
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/pesan" element={<Order isMobile={isMobile} />} />
           <Route path="/sukses" element={<Success />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/kelola/*" element={<Manage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

@@ -101,6 +101,9 @@ export default function Invite() {
       data={d.event}
       guest={guest}
       live={live}
+      music={d.music}
+      content={d.content}
+      mediaSlug={slug}
       showExtras={false}
     />
   );

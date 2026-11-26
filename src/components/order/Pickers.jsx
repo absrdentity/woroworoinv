@@ -4,7 +4,7 @@ import CoverArt from '../invitation/CoverArt.jsx';
 import Names from '../invitation/Names.jsx';
 import { themeStyle } from '../invitation/themeVars.js';
 import '../../invitation.css';
-import { EVENT_TYPES, FEATURES, PACKAGES, THEMES, formatIDR, getFeature, tierName } from '../../../shared/catalog.js';
+import { EVENT_TYPES, FEATURES, PACKAGES, THEMES, formatIDR, getFeature, parseMusic, tierName } from '../../../shared/catalog.js';
 import Icon from '../Icon.jsx';
 
 export function EventTypeChips({ value, onChange }) {
@@ -301,6 +301,54 @@ export function AdminTestPanel({ onSimulate, busy }) {
       <button type="button" className="btn btn--ghost btn--block" disabled={busy} onClick={() => onSimulate(outcome)}>
         <Icon name="flask" size={16} /> Simulasikan pembayaran
       </button>
+    </div>
+  );
+}
+
+/** Isian musik latar custom (tampil bila fitur "Musik Latar" dipilih). */
+export function MusicField({ music, setMus, note }) {
+  const r = parseMusic(music.url);
+  return (
+    <div className="field musicfield" data-testid="music-field">
+      <span className="field__label">
+        <Icon name="music" size={14} /> Musik latar undangan (opsional)
+      </span>
+      <label className="field">
+        <span className="field__label">Link lagu</span>
+        <input
+          value={music.url}
+          maxLength={400}
+          inputMode="url"
+          onChange={setMus('url')}
+          placeholder="https://www.youtube.com/watch?v=… atau https://…/lagu.mp3"
+        />
+      </label>
+      <label className="field">
+        <span className="field__label">Judul lagu (tampil di undangan)</span>
+        <input value={music.title} maxLength={60} onChange={setMus('title')} placeholder="Contoh: Perfect - Ed Sheeran" />
+      </label>
+      {music.url.trim() && (
+        <p className={`alert ${r.ok ? 'alert--ok' : 'alert--error'}`} role="status">
+          <Icon name={r.ok ? 'check-circle' : 'x-circle'} size={16} />
+          <span>
+            {r.ok ? `Terdeteksi: ${r.source}. Tekan tombol musik pada pratinjau untuk mencoba.` : r.error}
+          </span>
+        </p>
+      )}
+      <details className="musichelp">
+        <summary>Cara mendapatkan link lagu</summary>
+        <ul>
+          <li>
+            <b>YouTube</b>: buka lagunya, klik Bagikan, salin link. Paling mudah, tidak perlu upload.
+          </li>
+          <li>
+            <b>File MP3 sendiri</b>: unggah ke Google Drive, klik Bagikan &rarr; “Siapa saja yang memiliki link”, lalu
+            salin linknya. Dropbox juga bisa.
+          </li>
+          <li>Tidak punya link? Biarkan kosong dan kirim lagunya ke admin setelah memesan.</li>
+        </ul>
+      </details>
+      {note && <p className="small muted">{note}</p>}
     </div>
   );
 }

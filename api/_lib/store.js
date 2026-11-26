@@ -56,4 +56,12 @@ export const kv = {
     return ((await cmd('LRANGE', key, a, b)) || []).map(parse).filter(Boolean);
   },
   expire: (key, sec) => cmd('EXPIRE', key, Math.floor(sec)),
+  expireat: (key, ts) => cmd('EXPIREAT', key, Math.floor(ts)),
+  /** nilai mentah (string) untuk data besar seperti gambar base64 */
+  getRaw: (key) => cmd('GET', key),
+  setRaw: async (key, str, opts = {}) => {
+    const a = ['SET', key, str];
+    if (opts.exat) a.push('EXAT', Math.floor(opts.exat));
+    return (await cmd(...a)) === 'OK';
+  },
 };

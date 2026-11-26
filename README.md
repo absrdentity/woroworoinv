@@ -8,8 +8,8 @@ React + Vite, pembayaran **Midtrans Snap**, siap di-deploy ke **Vercel**.
   yang terbuka dan semakin besar kuota fitur yang bisa dipilih (19 fitur).
 - **Demo live**: pratinjau undangan yang berubah real-time, dengan pilihan tampilan **Ponsel** atau **Desktop**
   (bingkai browser: cover tetap di kiri, isi undangan bergulir di kanan).
-- **9 template** dengan efek berbeda-beda (kelopak sakura, dedaunan, kilau emas, bintang & meteor,
-  gelembung & ombak, hati melayang, aurora, konfeti & balon, bentuk geometris). Tiap template punya
+- **8 template** dengan efek berbeda-beda (kelopak sakura, dedaunan, kilau emas, bintang & meteor,
+  gelembung & ombak, hati melayang, konfeti & balon, bentuk geometris). Tiap template punya
   font, ornamen cover animasi, efek nama, dan animasi muncul saat di-scroll sendiri.
 - **Dua tampilan terpisah** (otomatis berdasarkan lebar layar, batas 820px):
   - **Desktop**: header menu atas, pesan 2 kolom dengan ringkasan sticky, demo berdampingan.
@@ -33,6 +33,10 @@ dan/atau halaman `/sukses` (idempoten, tidak pernah ganda), lalu ditampilkan kep
 - Admin juga bisa **membuat undangan manual**, membuat **link per tamu** (`?to=Nama`), dan melihat
   **RSVP & ucapan** yang masuk.
 - RSVP dan ucapan tamu pada link asli tersimpan di server.
+- **Musik latar custom**: bila paket/fitur "Musik Latar" dipilih, pelanggan menempel **link lagu** (YouTube,
+  Google Drive, Dropbox, atau file audio `https://...mp3`) dan judulnya. Tanpa upload file, jadi tetap gratis.
+  Musik mulai saat tamu menekan "Buka Undangan"; admin bisa mengganti/menghapusnya di tab Undangan > Musik.
+  Catatan: YouTube hanya memutar lagu yang pemiliknya mengizinkan penyematan (embed).
 
 Penyimpanan memakai **Upstash Redis (paket Free)**, tanpa library tambahan. Tanpa penyimpanan, pembayaran
 tetap berjalan seperti biasa; hanya fitur link otomatis yang nonaktif.
@@ -139,3 +143,19 @@ Database bersifat opsional (hanya untuk fitur link undangan). Setelah bayar, `/s
 menyediakan tombol kirim detail ke admin via WhatsApp (plus salin ringkasan). Ringkasan pesanan juga
 tampil di Midtrans Dashboard (`custom_field1–3`). Untuk skala lebih besar, tambahkan database
 (Supabase / Vercel Postgres), email otomatis saat lunas, dan halaman kelola pesanan.
+
+## Isi undangan: teks & media (halaman Kelola)
+
+Setelah pembayaran lunas, pelanggan menerima **link kelola rahasia** (`/kelola/<slug>?k=<kunci>`) di halaman sukses. Admin juga bisa membukanya dari tab Undangan ("Kelola isi" / "Link kelola").
+
+Yang bisa diisi pelanggan (sesuai fitur paket yang dipilih):
+- **Teks**: kata pengantar, keluarga, catatan, link Maps, kisah cinta (maks 6), rekening kado (maks 4) + alamat, link live streaming, link video YouTube, versi bahasa Inggris, data acara.
+- **Foto**: foto cover, galeri (maks 6), gambar QRIS. Foto dikompres di browser (maks ~200 KB) lalu disimpan di Upstash dan dilayani lewat `/api/media`.
+- **Musik / video / live** berupa tautan (YouTube, audio langsung, Google Drive, Dropbox), bukan unggahan file.
+- **Daftar tamu** + tombol kirim WhatsApp per tamu (`wa.me`, bukan kirim massal otomatis), **dashboard** RSVP/ucapan/check-in, dan **check-in QR** (kamera butuh dukungan BarcodeDetector; input manual selalu tersedia).
+
+Catatan:
+- Tidak ada env var baru; cukup Upstash yang sudah dipasang.
+- Kuota gratis Upstash 250 MB: sekitar 200 undangan dengan foto penuh.
+- Domain kustom hanya disimpan; pengaturan DNS/domain di Vercel dilakukan admin manual.
+- Jumlah fungsi API: 8 (batas Hobby 12).

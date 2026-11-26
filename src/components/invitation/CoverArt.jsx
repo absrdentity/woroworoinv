@@ -159,18 +159,6 @@ function Roses() {
   );
 }
 
-function Aurora() {
-  return (
-    <div className="art art--aurora" aria-hidden="true">
-      <span className="blob blob--1" />
-      <span className="blob blob--2" />
-      <span className="blob blob--3" />
-      <span className="ring ring--1" />
-      <span className="ring ring--2" />
-    </div>
-  );
-}
-
 function Balloons() {
   const B = ({ x, c, d, s = 1 }) => (
     <g transform={`translate(${x} 0)`}>
@@ -221,7 +209,7 @@ function Geo() {
   );
 }
 
-const MAP = { blossom: Blossom, leaves: Leaves, frame: Frame, moon: Moon, waves: Waves, roses: Roses, aurora: Aurora, balloons: Balloons, geo: Geo };
+const MAP = { blossom: Blossom, leaves: Leaves, frame: Frame, moon: Moon, waves: Waves, roses: Roses, balloons: Balloons, geo: Geo };
 
 export default function CoverArt({ kind }) {
   const C = MAP[kind];

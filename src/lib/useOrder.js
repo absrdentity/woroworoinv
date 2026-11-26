@@ -6,6 +6,9 @@ import {
   THEMES,
   getFeature,
   getPackage,
+  cleanContent,
+  normalizeMusic,
+  parseMusic,
   validateCustomer,
   validateSelection,
 } from '../../shared/catalog.js';
@@ -16,6 +19,15 @@ import { useConfig } from './config.jsx';
 const DEFAULT_PICK = ['countdown', 'maps', 'whatsapp_share'];
 
 /** State & aksi pemesanan — dipakai bersama oleh tampilan desktop dan mobile. */
+/** Objek musik valid untuk pratinjau, atau null. */
+export function safeMusic(m) {
+  try {
+    return normalizeMusic(m);
+  } catch {
+    return null;
+  }
+}
+
 export function useOrder() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -39,6 +51,8 @@ export function useOrder() {
     EVENT_TYPES.some((e) => e.id === params.get('acara')) ? params.get('acara') : 'pernikahan'
   );
   const [event, setEvent] = useState({ name1: '', name2: '', date: '', time: '10:00', venue: '', address: '' });
+  const [music, setMusic] = useState({ url: '', title: '' });
+  const [content, setContent] = useState({});
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -77,6 +91,10 @@ export function useOrder() {
   };
 
   const setEv = (key) => (e) => setEvent({ ...event, [key]: e.target.value });
+  const setMus = (key) => (e) => setMusic({ ...music, [key]: e.target.value });
+  const hasMusic = features.includes('music');
+  const musicData = hasMusic ? safeMusic(music) : null;
+  const contentData = cleanContent(content, features);
   const setCus = (key) => (e) => setCustomer({ ...customer, [key]: e.target.value });
 
   // ----- validasi per bagian (mengembalikan pesan error atau '') -----
@@ -88,18 +106,26 @@ export function useOrder() {
     if (!event.name1.trim()) return ev.double ? 'Isi nama mempelai pria.' : 'Isi nama pada undangan.';
     if (ev.double && !event.name2.trim()) return 'Isi nama mempelai wanita.';
     if (!event.date) return 'Pilih tanggal acara.';
+    if (hasMusic && music.url.trim()) {
+      const m = parseMusic(music.url);
+      if (!m.ok) return m.error;
+    }
     return '';
   };
   const customerError = () => validateCustomer(customer) || '';
   const firstError = () => selectionError() || eventError() || customerError();
 
-  const payload = () => ({ packageId, features, theme: themeId, eventType: eventTypeId, customer, event });
+  const payload = () => ({
+    packageId, features, theme: themeId, eventType: eventTypeId, customer, event,
+    ...(hasMusic && music.url.trim() ? { music } : {}),
+    content: contentData,
+  });
 
   const saveLast = (orderId) => {
     try {
       localStorage.setItem(
         'woro_last_order',
-        JSON.stringify({ orderId, packageId, features, themeId, eventTypeId, event, customer: { name: customer.name } })
+        JSON.stringify({ orderId, packageId, features, themeId, eventTypeId, event, music: hasMusic ? music : null, customer: { name: customer.name } })
       );
     } catch {
       /* abaikan jika storage tidak tersedia */
@@ -155,7 +181,7 @@ export function useOrder() {
     packageId, pkg, features, themeId, setThemeId, eventTypeId, setEventTypeId, ev,
     event, customer, busy, error, setError, notice, setNotice,
     quotaFull, quotaLabel,
-    changePackage, toggleFeature, setEv, setCus,
+    changePackage, toggleFeature, setEv, setCus, music, setMus, hasMusic, musicData, content, setContent, contentData,
     selectionError, eventError, customerError,
     pay, simulate,
   };

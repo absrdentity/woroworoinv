@@ -1,4 +1,4 @@
-import { validateSelection, validateCustomer } from '../shared/catalog.js';
+import { validateSelection, validateCustomer, normalizeMusic, cleanContent } from '../shared/catalog.js';
 import { isAdminReq, makeSimOrderId } from './_lib/admin.js';
 import { snapUrl, authHeader, clean } from './_lib/midtrans.js';
 import { saveOrder } from './_lib/invitations.js';
@@ -12,6 +12,8 @@ async function keepOrder(orderId, body, sel, simulated) {
       themeId: body.theme,
       eventTypeId: body.eventType,
       event: body.event || {},
+      music: sel.features.includes('music') ? body.music || null : null,
+      content: cleanContent(body.content, sel.features),
       customer: { name: clean(body.customer.name, 60), email: clean(body.customer.email, 100), phone: clean(body.customer.phone, 20) },
       simulated,
     });
@@ -43,6 +45,15 @@ export default async function handler(req, res) {
 
     const customerError = validateCustomer(body.customer);
     if (customerError) return res.status(400).json({ error: customerError });
+
+    // Musik custom (opsional): validasi link sebelum membuat transaksi
+    if (sel.features.includes('music')) {
+      try {
+        normalizeMusic(body.music);
+      } catch (e) {
+        return res.status(400).json({ error: e.message });
+      }
+    }
 
     // ---------- Simulasi pembayaran (khusus admin) ----------
     if (body.simulate) {

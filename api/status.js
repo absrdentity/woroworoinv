@@ -9,7 +9,14 @@ async function inviteInfo(orderId, paid, origin) {
     const inv = await ensureInvitationForOrder(orderId);
     return {
       storage: true,
-      invitation: inv ? { slug: inv.slug, url: `${origin}/u/${inv.slug}`, expiresAt: inv.expiresAt } : null,
+      invitation: inv
+        ? {
+            slug: inv.slug,
+            url: `${origin}/u/${inv.slug}`,
+            manageUrl: `${origin}/kelola/${inv.slug}?k=${inv.editKey}`,
+            expiresAt: inv.expiresAt,
+          }
+        : null,
     };
   } catch (e) {
     console.error('ensureInvitation gagal:', e.message);

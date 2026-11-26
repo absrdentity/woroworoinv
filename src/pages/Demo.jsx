@@ -1,9 +1,13 @@
 import { useState } from 'react';
+import { safeMusic } from '../lib/useOrder.js';
+import ContentEditor from '../components/order/ContentEditor.jsx';
+import { compressImage } from '../lib/image.js';
+import { cleanContent } from '../../shared/catalog.js';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FEATURES, EVENT_TYPES, THEMES, formatIDR, recommendPackage, tierName } from '../../shared/catalog.js';
 import InvitationPreview from '../components/InvitationPreview.jsx';
 import Icon from '../components/Icon.jsx';
-import { DeviceToggle, EventTypeChips, FeatureToggle, TemplatePicker } from '../components/order/Pickers.jsx';
+import { DeviceToggle, EventTypeChips, FeatureToggle, MusicField, TemplatePicker } from '../components/order/Pickers.jsx';
 
 function useDemoState() {
   const [features, setFeatures] = useState(['countdown', 'maps', 'gallery', 'rsvp']);
@@ -14,6 +18,11 @@ function useDemoState() {
   const [guest, setGuest] = useState('Bapak Andi & Keluarga');
   const [name1, setName1] = useState('Raka');
   const [name2, setName2] = useState('Ayu');
+  const [music, setMusic] = useState({ url: '', title: '' });
+  const setMus = (k) => (e) => setMusic({ ...music, [k]: e.target.value });
+  const musicData = features.includes('music') ? safeMusic(music) : null;
+  const [content, setContent] = useState({});
+  const contentData = cleanContent(content, features, { allowDataImages: true });
 
   const toggle = (f) => setFeatures((cur) => (cur.includes(f.id) ? cur.filter((x) => x !== f.id) : [...cur, f.id]));
   const rec = recommendPackage(features);
@@ -22,7 +31,7 @@ function useDemoState() {
 
   return {
     features, setFeatures, themeId, setThemeId, device, setDevice, eventTypeId, setEventTypeId,
-    guest, setGuest, name1, setName1, name2, setName2, toggle, rec, ev, orderUrl,
+    guest, setGuest, name1, setName1, name2, setName2, music, setMus, musicData, content, setContent, contentData, toggle, rec, ev, orderUrl,
   };
 }
 
@@ -50,6 +59,9 @@ function Controls({ s }) {
           <span className="field__label">Nama tamu (tampil jika fitur “Nama Tamu Personal” aktif)</span>
           <input value={s.guest} maxLength={40} onChange={(e) => s.setGuest(e.target.value)} />
         </label>
+        {s.features.includes('music') && <MusicField music={s.music} setMus={s.setMus} />}
+        <ContentEditor features={s.features} value={s.content} onChange={s.setContent} ev={s.ev} uploader={LOCAL_UPLOADER} />
+        <p className="small muted">Di demo, foto hanya tampil di pratinjau dan tidak disimpan. Setelah memesan, Anda mengunggahnya lewat halaman Kelola.</p>
       </section>
 
       <section className="panel">
@@ -80,6 +92,9 @@ function Controls({ s }) {
   );
 }
 
+/** Demo: foto dikompres lalu dipakai langsung di pratinjau (tidak diunggah). */
+const LOCAL_UPLOADER = { upload: (f) => compressImage(f, { max: 800, maxBytes: 110000 }), src: (r) => r };
+
 function Phone({ s, height, device }) {
   return (
     <InvitationPreview
@@ -88,6 +103,8 @@ function Phone({ s, height, device }) {
       eventTypeId={s.eventTypeId}
       guest={s.guest}
       data={{ name1: s.name1, name2: s.name2 }}
+      music={s.musicData}
+      content={s.contentData}
       height={height}
       device={device || s.device}
     />

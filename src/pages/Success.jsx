@@ -80,6 +80,8 @@ export default function Success() {
         `Nama: ${[savedOrder.event?.name1, savedOrder.event?.name2].filter(Boolean).join(' & ')}`,
         `Tanggal: ${savedOrder.event?.date || '-'} ${savedOrder.event?.time || ''}`,
         `Tempat: ${savedOrder.event?.venue || '-'}, ${savedOrder.event?.address || '-'}`,
+        ...(data?.invitation ? [`Link undangan: ${data.invitation.url}`, `Link kelola (rahasia): ${data.invitation.manageUrl}`] : []),
+        `Musik latar: ${savedOrder.music?.url ? `${savedOrder.music.title ? savedOrder.music.title + ' - ' : ''}${savedOrder.music.url}` : '-'}`,
         `Fitur: ${(savedOrder.features || []).map((id) => getFeature(id)?.name).filter(Boolean).join(', ') || '-'}`,
         '',
         'Mohon diproses ya. Terima kasih!',
@@ -185,6 +187,26 @@ export default function Success() {
               Aktif sampai {new Date(data.invitation.expiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}.
               Tambahkan <code>?to=Nama Tamu</code> di akhir link untuk menyapa tamu dengan nama mereka.
             </p>
+            <div className="manage-box" data-testid="manage-box">
+              <strong>
+                <Icon name="edit" size={15} /> Lengkapi isi undangan
+              </strong>
+              <p className="small muted">
+                Isi teks, unggah foto, atur musik, video, rekening, dan kelola tamu lewat halaman kelola. Simpan link ini, bersifat rahasia.
+              </p>
+              <div className="status__actions">
+                <a className="btn" href={data.invitation.manageUrl}>
+                  <Icon name="edit" size={16} /> Buka halaman kelola
+                </a>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => navigator.clipboard?.writeText(data.invitation.manageUrl).catch(() => {})}
+                >
+                  <Icon name="copy" size={16} /> Salin link kelola
+                </button>
+              </div>
+            </div>
             <div className="status__actions">
               <a className="btn" href={data.invitation.url} target="_blank" rel="noreferrer">
                 <Icon name="external" size={16} /> Buka undangan

@@ -1,4 +1,15 @@
-import { PACKAGES, slugify, validateSelection } from '../../shared/catalog.js';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  CONTENT_LIMITS,
+  PACKAGES,
+  cleanContent,
+  cleanGuests,
+  contentImageIds,
+  isImageId,
+  normalizeMusic,
+  slugify,
+  validateSelection,
+} from '../../shared/catalog.js';
 import { kv, storeConfigured } from './store.js';
 import { clean } from './midtrans.js';
 
@@ -7,9 +18,18 @@ const GRACE_DAYS = 30; // data dihapus otomatis dari penyimpanan 30 hari setelah
 const INDEX = 'wwi:invs';
 const invKey = (slug) => `wwi:inv:${slug}`;
 const ordKey = (id) => `wwi:ord:${id}`;
+const imgKey = (slug, id) => `wwi:img:${slug}:${id}`;
 
 export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38})[a-z0-9]$/;
 export { storeConfigured };
+
+function musicOrThrow(m) {
+  try {
+    return normalizeMusic(m);
+  } catch (e) {
+    throw Object.assign(new Error(e.message), { status: 400 });
+  }
+}
 
 const cleanEvent = (e = {}) => ({
   name1: clean(e.name1, 40),
@@ -70,6 +90,11 @@ export async function createInvitation(input, { simulated = false, orderId = nul
     themeId: input.themeId,
     eventTypeId: input.eventTypeId,
     event,
+    music: sel.features.includes('music') ? musicOrThrow(input.music) : null,
+    content: cleanContent(input.content, sel.features),
+    guests: [],
+    media: [],
+    editKey: randomBytes(12).toString('base64url'),
     owner: clean(input.owner || (customer && customer.name) || event.name1, 60),
     contact: customer ? { email: clean(customer.email, 100), phone: clean(customer.phone, 20) } : null,
     orderId,
@@ -97,7 +122,8 @@ export async function listInvitations() {
 }
 
 /** Ubah masa aktif: { days } = mulai dari SEKARANG, { extendDays } = tambah dari batas sekarang. */
-export async function updateInvitation(slug, { days, extendDays, event }) {
+export async function updateInvitation(slug, opts) {
+  const { days, extendDays, event } = opts;
   const inv = await getInvitation(slug);
   if (!inv) throw Object.assign(new Error('Undangan tidak ditemukan.'), { status: 404 });
   const now = Date.now();
@@ -110,11 +136,22 @@ export async function updateInvitation(slug, { days, extendDays, event }) {
     inv.expiresAt = Math.max(inv.expiresAt, now) + d * DAY;
   }
   if (event) inv.event = { ...inv.event, ...cleanEvent({ ...inv.event, ...event }) };
+  if (days != null || extendDays != null) await touchMedia(inv);
+  if ('music' in opts) {
+    if (opts.music && !inv.features.includes('music')) {
+      throw Object.assign(new Error('Fitur Musik Latar tidak aktif pada undangan ini.'), { status: 400 });
+    }
+    inv.music = musicOrThrow(opts.music);
+  }
   await kv.set(invKey(slug), inv, { exat: purgeAt(inv.expiresAt) });
   return inv;
 }
 
 export async function deleteInvitation(slug) {
+  const inv = await getInvitation(slug);
+  for (const id of (inv && inv.media) || []) await kv.del(imgKey(slug, id));
+  await kv.del(`wwi:chk:${slug}`);
+  await kv.del(`wwi:chkl:${slug}`);
   await kv.del(invKey(slug));
   await kv.del(`wwi:wish:${slug}`);
   await kv.del(`wwi:rsvp:${slug}`);
@@ -157,6 +194,8 @@ export function publicView(inv) {
     themeId: inv.themeId,
     eventTypeId: inv.eventTypeId,
     event: inv.event,
+    music: inv.music || null,
+    content: inv.content || {},
     expiresAt: inv.expiresAt,
   };
 }
@@ -169,6 +208,7 @@ export async function addWish(slug, { name, message }) {
   if (!item.m) throw Object.assign(new Error('Ucapan kosong.'), { status: 400 });
   await kv.lpush(`wwi:wish:${slug}`, item);
   await kv.ltrim(`wwi:wish:${slug}`, 0, 199);
+  await expireWithInvitation(slug, `wwi:wish:${slug}`);
   return item;
 }
 export const listWishes = (slug, n = 30) => kv.lrange(`wwi:wish:${slug}`, 0, n - 1);
@@ -178,6 +218,112 @@ export async function addRsvp(slug, { name, attend }) {
   if (!item.n) throw Object.assign(new Error('Nama wajib diisi.'), { status: 400 });
   await kv.lpush(`wwi:rsvp:${slug}`, item);
   await kv.ltrim(`wwi:rsvp:${slug}`, 0, 499);
+  await expireWithInvitation(slug, `wwi:rsvp:${slug}`);
   return item;
 }
 export const listRsvps = (slug, n = 500) => kv.lrange(`wwi:rsvp:${slug}`, 0, n - 1);
+
+/* ---------- Kunci pengelolaan, media, check-in ---------- */
+async function expireWithInvitation(slug, key) {
+  const inv = await getInvitation(slug);
+  if (inv) await kv.expireat(key, purgeAt(inv.expiresAt));
+}
+
+/** Perbarui waktu hapus otomatis semua gambar (dipanggil saat masa aktif berubah). */
+async function touchMedia(inv) {
+  for (const id of inv.media || []) await kv.expireat(imgKey(inv.slug, id), purgeAt(inv.expiresAt));
+}
+
+/** Cocokkan kunci pengelolaan pelanggan (perbandingan waktu-konstan). */
+export function keyMatches(inv, key) {
+  const a = Buffer.from(String(key || ''));
+  const b = Buffer.from(String(inv.editKey || ''));
+  return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
+}
+
+const MAGIC = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  'image/webp': (b) => b.slice(0, 4).toString() === 'RIFF' && b.slice(8, 12).toString() === 'WEBP',
+};
+
+/** Simpan 1 gambar (data URL hasil kompres di browser). Mengembalikan id. */
+export async function saveImage(slug, dataUrl) {
+  const inv = await getInvitation(slug);
+  if (!inv) throw Object.assign(new Error('Undangan tidak ditemukan.'), { status: 404 });
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(String(dataUrl || ''));
+  if (!m) throw Object.assign(new Error('Format gambar harus JPG, PNG, atau WebP.'), { status: 400 });
+  const bytes = Buffer.from(m[2], 'base64');
+  if (bytes.length > CONTENT_LIMITS.imageBytes) {
+    throw Object.assign(new Error('Ukuran gambar terlalu besar (maks. ' + Math.round(CONTENT_LIMITS.imageBytes / 1000) + ' KB setelah dikompres).'), { status: 413 });
+  }
+  if (!MAGIC[m[1]](bytes)) throw Object.assign(new Error('Berkas bukan gambar yang valid.'), { status: 400 });
+  if ((inv.media || []).length >= CONTENT_LIMITS.uploadsPerInvitation) {
+    throw Object.assign(new Error('Batas unggahan tercapai. Hapus foto yang tidak dipakai lalu simpan.'), { status: 400 });
+  }
+  const id = randomBytes(8).toString('hex');
+  await kv.setRaw(imgKey(slug, id), JSON.stringify({ m: m[1], d: m[2] }), { exat: purgeAt(inv.expiresAt) });
+  inv.media = [...(inv.media || []), id];
+  await kv.set(invKey(slug), inv, { exat: purgeAt(inv.expiresAt) });
+  return id;
+}
+
+export async function getImage(slug, id) {
+  if (!isImageId(id)) return null;
+  const raw = await kv.getRaw(imgKey(slug, id));
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return { mime: v.m, bytes: Buffer.from(v.d, 'base64') };
+  } catch {
+    return null;
+  }
+}
+
+/** Simpan isi undangan (teks + rujukan gambar), detail acara, musik, dan daftar tamu. */
+export async function saveContent(slug, body) {
+  const inv = await getInvitation(slug);
+  if (!inv) throw Object.assign(new Error('Undangan tidak ditemukan.'), { status: 404 });
+  if (body.event) inv.event = { ...inv.event, ...cleanEvent({ ...inv.event, ...body.event }) };
+  if ('music' in body && inv.features.includes('music')) inv.music = musicOrThrow(body.music);
+  if (body.content) {
+    const next = cleanContent(body.content, inv.features);
+    // hanya boleh merujuk gambar yang memang diunggah ke undangan ini
+    const owned = new Set(inv.media || []);
+    const used = new Set(contentImageIds(next).filter((id) => owned.has(id)));
+    const fix = (id) => (id && used.has(id) ? id : '');
+    next.cover = fix(next.cover);
+    if (next.gallery) next.gallery = next.gallery.filter((id) => used.has(id));
+    if (next.gift) next.gift.qris = fix(next.gift.qris);
+    inv.content = next;
+    // hapus gambar yang tidak dirujuk lagi
+    const keep = new Set(contentImageIds(next));
+    for (const id of inv.media || []) if (!keep.has(id)) await kv.del(imgKey(slug, id));
+    inv.media = [...keep];
+  }
+  if (body.guests) inv.guests = cleanGuests(body.guests);
+  await kv.set(invKey(slug), inv, { exat: purgeAt(inv.expiresAt) });
+  return inv;
+}
+
+/** Check-in tamu di lokasi. `code` = "CHK:slug:Nama" (dari QR) atau nama biasa. */
+export async function checkIn(slug, code) {
+  let name = String(code || '').trim();
+  const m = /^CHK:([a-z0-9-]+):(.+)$/i.exec(name);
+  if (m) {
+    if (m[1].toLowerCase() !== slug) throw Object.assign(new Error('QR ini milik undangan lain.'), { status: 400 });
+    name = m[2];
+  }
+  name = name.replace(/[\u0000-\u001f<>]/g, '').slice(0, 60).trim();
+  if (!name) throw Object.assign(new Error('Nama / kode kosong.'), { status: 400 });
+  const added = await kv.sadd(`wwi:chk:${slug}`, name.toLowerCase());
+  const at = Date.now();
+  if (added === 1) {
+    await kv.lpush(`wwi:chkl:${slug}`, { n: name, t: at });
+    await kv.ltrim(`wwi:chkl:${slug}`, 0, 999);
+    await expireWithInvitation(slug, `wwi:chk:${slug}`);
+    await expireWithInvitation(slug, `wwi:chkl:${slug}`);
+  }
+  return { name, already: added !== 1 };
+}
+export const listCheckins = (slug) => kv.lrange(`wwi:chkl:${slug}`, 0, 999);

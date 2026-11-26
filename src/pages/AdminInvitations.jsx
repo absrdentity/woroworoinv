@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EVENT_TYPES, FEATURES, THEMES, formatIDR, getPackage, tierName } from '../../shared/catalog.js';
 import Icon from '../components/Icon.jsx';
-import { EventForm, EventTypeChips, PackagePicker, TemplatePicker } from '../components/order/Pickers.jsx';
+import { EventForm, EventTypeChips, MusicField, PackagePicker, TemplatePicker } from '../components/order/Pickers.jsx';
 import { adminApi } from '../lib/admin.js';
 
 async function copy(text) {
@@ -151,6 +151,7 @@ function Row({ inv, onChanged, onDeleted }) {
   const [open, setOpen] = useState('');
   const [days, setDays] = useState('');
   const [confirm, setConfirm] = useState(false);
+  const [mus, setMusState] = useState({ url: inv.music?.url || '', title: inv.music?.title || '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const pkg = getPackage(inv.packageId);
@@ -186,6 +187,8 @@ function Row({ inv, onChanged, onDeleted }) {
           <strong>{names(inv.event)}</strong>{' '}
           <span className={`pill pill--${expired ? 'warn' : 'ok'}`}>{expired ? 'Kedaluwarsa' : `Aktif · sisa ${inv.daysLeft} hari`}</span>{' '}
           {inv.simulated && <span className="pill">Simulasi</span>}
+          {inv.priorityUntil && <span className="pill pill--warn">Prioritas 24 jam{inv.priorityUntil > Date.now() ? ` · sampai ${new Date(inv.priorityUntil).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}</span>}
+          {inv.content?.domain && <span className="pill">Domain: {inv.content.domain}</span>}
           <div className="small muted">
             Paket {pkg?.name} · {THEMES.find((t) => t.id === inv.themeId)?.name} · dibuat {fmtDate(inv.createdAt)} · berakhir{' '}
             {fmtDate(inv.expiresAt)} ({inv.orderId ? 'dari pesanan' : 'manual'})
@@ -194,6 +197,10 @@ function Row({ inv, onChanged, onDeleted }) {
         </div>
         <div className="invrow__actions">
           <CopyBtn text={inv.url} label="Salin link" />
+          <CopyBtn text={inv.manageUrl} label="Link kelola" />
+          <a className="btn btn--ghost btn--sm" href={`/kelola/${inv.slug}`} target="_blank" rel="noreferrer">
+            <Icon name="edit" size={14} /> Kelola isi
+          </a>
           <a className="btn btn--ghost btn--sm" href={inv.url} target="_blank" rel="noreferrer">
             <Icon name="external" size={14} /> Buka
           </a>
@@ -204,6 +211,11 @@ function Row({ inv, onChanged, onDeleted }) {
         <button type="button" className="link" onClick={() => setOpen(open === 'dur' ? '' : 'dur')}>
           Atur durasi
         </button>
+        {inv.features.includes('music') && (
+          <button type="button" className="link" onClick={() => setOpen(open === 'music' ? '' : 'music')}>
+            Musik
+          </button>
+        )}
         <button type="button" className="link" onClick={() => setOpen(open === 'guest' ? '' : 'guest')}>
           Link tamu
         </button>
@@ -255,6 +267,29 @@ function Row({ inv, onChanged, onDeleted }) {
           <p className="small muted">“Atur dari hari ini” menghitung ulang masa aktif mulai sekarang (isi 1 untuk menutup lebih cepat).</p>
         </div>
       )}
+      {open === 'music' && (
+        <div className="invrow__more">
+          <MusicField music={mus} setMus={(k) => (e) => setMusState({ ...mus, [k]: e.target.value })} />
+          <div className="input-row">
+            <button type="button" className="btn btn--sm" disabled={busy} onClick={() => update({ music: mus })}>
+              Simpan musik
+            </button>
+            {inv.music && (
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                disabled={busy}
+                onClick={() => {
+                  setMusState({ url: '', title: '' });
+                  update({ music: null });
+                }}
+              >
+                Hapus musik
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {open === 'guest' && <GuestLinks inv={inv} />}
       {open === 'rsvp' && <Guests slug={inv.slug} />}
     </li>
@@ -272,6 +307,7 @@ function CreateForm({ onCreated }) {
   const [event, setEvent] = useState(blank);
   const [days, setDays] = useState('');
   const [slug, setSlug] = useState('');
+  const [music, setMusic] = useState({ url: '', title: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [made, setMade] = useState(null);
@@ -295,7 +331,7 @@ function CreateForm({ onCreated }) {
     try {
       const r = await adminApi('inv_create', {
         method: 'POST',
-        body: { packageId, features, themeId, eventTypeId, event: { ...event, name2: ev.double ? event.name2 : '' }, days: days ? Number(days) : undefined, slug: slug || undefined },
+        body: { packageId, features, themeId, eventTypeId, event: { ...event, name2: ev.double ? event.name2 : '' }, days: days ? Number(days) : undefined, slug: slug || undefined, music: features.includes('music') ? music : undefined },
       });
       setMade(r.item);
       onCreated(r.item);
@@ -340,6 +376,8 @@ function CreateForm({ onCreated }) {
           ))}
         </div>
       </div>
+
+      {features.includes('music') && <MusicField music={music} setMus={(k) => (e) => setMusic({ ...music, [k]: e.target.value })} />}
 
       <div className="field-row">
         <label className="field">
