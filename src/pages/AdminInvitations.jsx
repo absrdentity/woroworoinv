@@ -147,6 +147,9 @@ function Guests({ slug }) {
 }
 
 /* ---------------- Satu baris undangan ---------------- */
+/** Urutan tampil: undangan hilang, lalu prioritas yang belum lewat 24 jam, lalu sisanya. */
+const rank = (i) => (i.status === 'lost' ? 0 : i.priorityUntil && i.priorityUntil > Date.now() ? 1 : 2);
+
 function Row({ inv, onChanged, onDeleted }) {
   const [open, setOpen] = useState('');
   const [days, setDays] = useState('');
@@ -156,6 +159,7 @@ function Row({ inv, onChanged, onDeleted }) {
   const [err, setErr] = useState('');
   const pkg = getPackage(inv.packageId);
   const expired = inv.status === 'expired';
+  const [dom, setDom] = useState(null);
 
   const act = async (fn) => {
     setBusy(true);
@@ -179,6 +183,27 @@ function Row({ inv, onChanged, onDeleted }) {
       await adminApi('inv_delete', { method: 'POST', body: { slug: inv.slug } });
       onDeleted(inv.slug);
     });
+
+  const connect = () =>
+    act(async () => {
+      setDom(await adminApi('inv_domain', { method: 'POST', body: { slug: inv.slug } }));
+    });
+
+  if (inv.status === 'lost') {
+    return (
+      <li className="invrow invrow--lost" data-slug={inv.slug} data-testid="lost-row">
+        <p className="alert alert--error">
+          <strong>{names(inv.event)}</strong> ({inv.slug}) masih seharusnya aktif sampai {fmtDate(inv.expiresAt)}, tetapi datanya tidak ada di penyimpanan.
+          Penyebab umum: kuota/memori Upstash penuh dengan eviction menyala, database Upstash tidak aktif lalu diarsipkan, atau dihapus manual.
+          Buat ulang undangan ini dengan link yang sama, atau hapus catatannya.
+        </p>
+        <button type="button" className="btn btn--ghost btn--sm" disabled={busy} onClick={remove}>
+          Hapus catatan
+        </button>
+        {err && <p className="alert alert--error">{err}</p>}
+      </li>
+    );
+  }
 
   return (
     <li className="invrow" data-slug={inv.slug}>
@@ -216,6 +241,11 @@ function Row({ inv, onChanged, onDeleted }) {
             Musik
           </button>
         )}
+        {inv.content?.domain && (
+          <button type="button" className="link" disabled={busy} onClick={connect}>
+            Hubungkan domain
+          </button>
+        )}
         <button type="button" className="link" onClick={() => setOpen(open === 'guest' ? '' : 'guest')}>
           Link tamu
         </button>
@@ -240,6 +270,18 @@ function Row({ inv, onChanged, onDeleted }) {
       </div>
 
       {err && <p className="alert alert--error">{err}</p>}
+
+      {dom && (
+        <div className="invrow__more" data-testid="domain-result">
+          <strong>Domain {dom.domain}</strong>
+          <p className={dom.ok ? 'muted' : 'alert alert--error'}>{dom.message}</p>
+          {dom.dns && (
+            <p className="small">
+              Atur DNS di penyedia domain: <code>{dom.dns.type}</code> nama <code>{dom.dns.name}</code> nilai <code>{dom.dns.value}</code>
+            </p>
+          )}
+        </div>
+      )}
 
       {open === 'dur' && (
         <div className="invrow__more">
@@ -431,6 +473,7 @@ export default function AdminInvitations() {
   if (state.loading) return <p className="muted">Memuat…</p>;
   if (!state.storage) return <StorageGuide />;
 
+  const prio = state.items.filter((i) => i.status !== 'lost' && i.priorityUntil && i.priorityUntil > Date.now()).length;
   const upsert = (item) => setState((s) => ({ ...s, items: [item, ...s.items.filter((i) => i.slug !== item.slug)].sort((a, b) => b.createdAt - a.createdAt) }));
   const drop = (slug) => setState((s) => ({ ...s, items: s.items.filter((i) => i.slug !== slug) }));
   const active = state.items.filter((i) => i.status === 'active').length;
@@ -457,13 +500,20 @@ export default function AdminInvitations() {
             <Icon name="refresh" size={15} /> Muat ulang
           </button>
         </div>
+        {prio > 0 && (
+          <p className="alert alert--warn" data-testid="prio-banner">
+            {prio} undangan Prioritas 24 jam masih dalam batas waktu. Kerjakan lebih dulu (ditampilkan paling atas).
+          </p>
+        )}
         {state.items.length === 0 ? (
           <p className="muted">Belum ada undangan. Undangan muncul otomatis setelah pesanan dibayar, atau buat manual di atas.</p>
         ) : (
           <ul className="invlist">
-            {state.items.map((inv) => (
-              <Row key={inv.slug} inv={inv} onChanged={upsert} onDeleted={drop} />
-            ))}
+            {[...state.items]
+              .sort((a, b) => rank(a) - rank(b) || b.createdAt - a.createdAt)
+              .map((inv) => (
+                <Row key={inv.slug} inv={inv} onChanged={upsert} onDeleted={drop} />
+              ))}
           </ul>
         )}
         <p className="small muted">

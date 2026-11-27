@@ -19,6 +19,56 @@ const INDEX = 'wwi:invs';
 const invKey = (slug) => `wwi:inv:${slug}`;
 const ordKey = (id) => `wwi:ord:${id}`;
 const imgKey = (slug, id) => `wwi:img:${slug}:${id}`;
+const META = 'wwi:meta'; // slug -> ringkasan (untuk mendeteksi undangan yang hilang dari penyimpanan)
+const domKey = (d) => `wwi:dom:${d}`;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Kunci singkat per undangan agar dua penulisan bersamaan tidak saling menimpa (foto/isi/durasi). */
+async function withLock(slug, fn) {
+  const lk = `wwi:mut:${slug}`;
+  let got = false;
+  for (let i = 0; i < 20 && !got; i += 1) {
+    got = await kv.set(lk, 1, { ex: 15, nx: true });
+    if (!got) await sleep(150);
+  }
+  try {
+    return await fn();
+  } finally {
+    if (got) await kv.del(lk).catch(() => {});
+  }
+}
+
+const writeMeta = (inv) =>
+  kv.hset(META, inv.slug, { expiresAt: inv.expiresAt, createdAt: inv.createdAt, name1: inv.event.name1, name2: inv.event.name2, owner: inv.owner });
+
+export const normHost = (h) => String(h || '').toLowerCase().replace(/:\d+$/, '').replace(/^www\./, '');
+
+/** Memetakan domain kustom -> slug. false bila domain sudah dipakai undangan lain. */
+async function syncDomain(inv, oldDomain = '') {
+  const d = normHost(inv.content && inv.content.domain);
+  const old = normHost(oldDomain);
+  if (old && old !== d) {
+    const cur = await kv.get(domKey(old));
+    if (cur && cur.slug === inv.slug) await kv.del(domKey(old));
+  }
+  if (!d) return true;
+  const rec = { slug: inv.slug };
+  const opt = { exat: purgeAt(inv.expiresAt) };
+  if (await kv.set(domKey(d), rec, { ...opt, nx: true })) return true;
+  const cur = await kv.get(domKey(d));
+  if (cur && cur.slug === inv.slug) {
+    await kv.set(domKey(d), rec, opt);
+    return true;
+  }
+  return false;
+}
+
+export async function slugForDomain(host) {
+  const d = normHost(host);
+  if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(d)) return null;
+  const r = await kv.get(domKey(d));
+  return (r && r.slug) || null;
+}
 
 export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38})[a-z0-9]$/;
 export { storeConfigured };
@@ -73,18 +123,13 @@ export async function createInvitation(input, { simulated = false, orderId = nul
   const pkg = sel.pkg;
   const days = Math.min(3650, Math.max(1, Math.round(Number(input.days) || pkg.durationDays)));
 
-  let slug;
-  if (input.slug) {
-    slug = String(input.slug).toLowerCase().trim();
-    if (!SLUG_RE.test(slug)) throw Object.assign(new Error('Slug hanya huruf kecil, angka, dan strip (3-40 karakter).'), { status: 400 });
-    if (await kv.get(invKey(slug))) throw Object.assign(new Error('Slug sudah dipakai. Pilih yang lain.'), { status: 409 });
-  } else {
-    slug = await uniqueSlug(slugify(event.name1, event.name2));
-  }
+  const custom = input.slug ? String(input.slug).toLowerCase().trim() : '';
+  if (custom && !SLUG_RE.test(custom)) throw Object.assign(new Error('Slug hanya huruf kecil, angka, dan strip (3-40 karakter).'), { status: 400 });
+  const baseSlug = slugify(event.name1, event.name2);
 
   const now = Date.now();
   const inv = {
-    slug,
+    slug: custom,
     packageId: pkg.id,
     features: sel.features,
     themeId: input.themeId,
@@ -103,8 +148,19 @@ export async function createInvitation(input, { simulated = false, orderId = nul
     durationDays: days,
     expiresAt: now + days * DAY,
   };
-  await kv.set(invKey(slug), inv, { exat: purgeAt(inv.expiresAt) });
-  await kv.sadd(INDEX, slug);
+  // SET ... NX: tidak pernah menimpa undangan lain yang kebetulan bernama sama (dua pesanan bersamaan)
+  for (let i = 0; ; i += 1) {
+    inv.slug = custom || (await uniqueSlug(baseSlug));
+    if (await kv.set(invKey(inv.slug), inv, { exat: purgeAt(inv.expiresAt), nx: true })) break;
+    if (custom) throw Object.assign(new Error('Slug sudah dipakai. Pilih yang lain.'), { status: 409 });
+    if (i >= 5) throw Object.assign(new Error('Gagal membuat link unik. Coba lagi.'), { status: 503 });
+  }
+  await kv.sadd(INDEX, inv.slug);
+  await writeMeta(inv);
+  if (inv.content.domain && !(await syncDomain(inv))) {
+    inv.content.domain = ''; // domain sudah dipakai undangan lain: abaikan, jangan gagalkan pesanan
+    await kv.set(invKey(inv.slug), inv, { exat: purgeAt(inv.expiresAt) });
+  }
   return inv;
 }
 
@@ -113,16 +169,35 @@ export const getInvitation = (slug) => kv.get(invKey(slug));
 export async function listInvitations() {
   const slugs = await kv.smembers(INDEX);
   const rows = await kv.mget(slugs.map(invKey));
+  const meta = await kv.hgetall(META).catch(() => ({}));
   const out = [];
   for (let i = 0; i < slugs.length; i += 1) {
-    if (rows[i]) out.push(rows[i]);
-    else await kv.srem(INDEX, slugs[i]); // sudah terhapus otomatis: bersihkan indeks
+    const slug = slugs[i];
+    if (rows[i]) {
+      out.push(rows[i]);
+      if (!meta[slug]) await writeMeta(rows[i]).catch(() => {});
+      continue;
+    }
+    const m = meta[slug];
+    if (m && m.expiresAt > Date.now()) {
+      // masa aktif belum habis tetapi datanya tidak ada di penyimpanan: JANGAN dibuang diam-diam
+      out.push({
+        slug, lost: true, features: [], editKey: '', owner: m.owner || '', content: {},
+        event: { name1: m.name1 || '', name2: m.name2 || '', date: '', venue: '' },
+        createdAt: m.createdAt || 0, expiresAt: m.expiresAt,
+      });
+    } else {
+      await kv.srem(INDEX, slug); // sudah kedaluwarsa & terhapus otomatis: bersihkan indeks
+      await kv.hdel(META, slug);
+    }
   }
   return out.sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** Ubah masa aktif: { days } = mulai dari SEKARANG, { extendDays } = tambah dari batas sekarang. */
-export async function updateInvitation(slug, opts) {
+export const updateInvitation = (slug, opts) => withLock(slug, () => updateInvitationLocked(slug, opts));
+
+async function updateInvitationLocked(slug, opts) {
   const { days, extendDays, event } = opts;
   const inv = await getInvitation(slug);
   if (!inv) throw Object.assign(new Error('Undangan tidak ditemukan.'), { status: 404 });
@@ -144,11 +219,19 @@ export async function updateInvitation(slug, opts) {
     inv.music = musicOrThrow(opts.music);
   }
   await kv.set(invKey(slug), inv, { exat: purgeAt(inv.expiresAt) });
+  await writeMeta(inv);
+  if (inv.content && inv.content.domain) await syncDomain(inv, inv.content.domain);
   return inv;
 }
 
 export async function deleteInvitation(slug) {
   const inv = await getInvitation(slug);
+  if (inv && inv.content && inv.content.domain) {
+    const d = normHost(inv.content.domain);
+    const cur = await kv.get(domKey(d));
+    if (cur && cur.slug === slug) await kv.del(domKey(d));
+  }
+  await kv.hdel(META, slug);
   for (const id of (inv && inv.media) || []) await kv.del(imgKey(slug, id));
   await kv.del(`wwi:chk:${slug}`);
   await kv.del(`wwi:chkl:${slug}`);
@@ -248,7 +331,9 @@ const MAGIC = {
 };
 
 /** Simpan 1 gambar (data URL hasil kompres di browser). Mengembalikan id. */
-export async function saveImage(slug, dataUrl) {
+export const saveImage = (slug, dataUrl) => withLock(slug, () => saveImageLocked(slug, dataUrl));
+
+async function saveImageLocked(slug, dataUrl) {
   const inv = await getInvitation(slug);
   if (!inv) throw Object.assign(new Error('Undangan tidak ditemukan.'), { status: 404 });
   const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(String(dataUrl || ''));
@@ -281,13 +366,20 @@ export async function getImage(slug, id) {
 }
 
 /** Simpan isi undangan (teks + rujukan gambar), detail acara, musik, dan daftar tamu. */
-export async function saveContent(slug, body) {
+export const saveContent = (slug, body) => withLock(slug, () => saveContentLocked(slug, body));
+
+async function saveContentLocked(slug, body) {
   const inv = await getInvitation(slug);
   if (!inv) throw Object.assign(new Error('Undangan tidak ditemukan.'), { status: 404 });
   if (body.event) inv.event = { ...inv.event, ...cleanEvent({ ...inv.event, ...body.event }) };
   if ('music' in body && inv.features.includes('music')) inv.music = musicOrThrow(body.music);
   if (body.content) {
+    const oldDomain = (inv.content && inv.content.domain) || '';
     const next = cleanContent(body.content, inv.features);
+    inv.content = { ...inv.content, domain: next.domain || '' };
+    if ((next.domain || '') !== oldDomain && !(await syncDomain(inv, oldDomain))) {
+      throw Object.assign(new Error('Domain ini sudah dipakai undangan lain.'), { status: 409 });
+    }
     // hanya boleh merujuk gambar yang memang diunggah ke undangan ini
     const owned = new Set(inv.media || []);
     const used = new Set(contentImageIds(next).filter((id) => owned.has(id)));

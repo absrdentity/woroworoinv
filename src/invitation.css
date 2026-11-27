@@ -1959,3 +1959,264 @@
 .is-mobile .manage__save {
   bottom: calc(66px + env(safe-area-inset-bottom));
 }
+
+/* ============================================================
+   Template baru: Jawa Keraton, Melati Janur, Islami, Art Deco, Boho, Tropis
+   ============================================================ */
+.inv {
+  --m-flower: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='black'%3E%3Cellipse cx='12' cy='6.2' rx='3.6' ry='5.4'/%3E%3Cellipse cx='12' cy='6.2' rx='3.6' ry='5.4' transform='rotate(72 12 12)'/%3E%3Cellipse cx='12' cy='6.2' rx='3.6' ry='5.4' transform='rotate(144 12 12)'/%3E%3Cellipse cx='12' cy='6.2' rx='3.6' ry='5.4' transform='rotate(216 12 12)'/%3E%3Cellipse cx='12' cy='6.2' rx='3.6' ry='5.4' transform='rotate(288 12 12)'/%3E%3C/g%3E%3C/svg%3E");
+  --m-kawung: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.7'%3E%3Cellipse cx='12' cy='6.6' rx='3.8' ry='6'/%3E%3Cellipse cx='12' cy='6.6' rx='3.8' ry='6' transform='rotate(90 12 12)'/%3E%3Cellipse cx='12' cy='6.6' rx='3.8' ry='6' transform='rotate(180 12 12)'/%3E%3Cellipse cx='12' cy='6.6' rx='3.8' ry='6' transform='rotate(270 12 12)'/%3E%3C/g%3E%3Ccircle cx='12' cy='12' r='1.7'/%3E%3C/svg%3E");
+  --m-star8: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 0l2.6 6.2L21 3.5l-2.7 6.4L24 12l-5.7 2.1 2.7 6.4-6.4-2.7L12 24l-2.6-6.2L3 20.5l2.7-6.4L0 12l5.7-2.1L3 3.5l6.4 2.7z'/%3E%3C/svg%3E");
+  --m-leaf: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 21C3 9 11 3 21 3c0 10-6 18-18 18z'/%3E%3C/svg%3E");
+  --m-wing: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 12C9 2 1 2 2 9c1 5 6 5 10 3-4 2-9 3-7 8 3 4 6-2 7-8zM12 12c3-10 11-10 10-3-1 5-6 5-10 3 4 2 9 3 7 8-3 4-6-2-7-8z'/%3E%3C/svg%3E");
+}
+.art-hang {
+  transform-box: view-box;
+  transform-origin: var(--ox, 50%) 0;
+  animation: art-hang 5s ease-in-out infinite alternate;
+}
+@keyframes art-hang {
+  from {
+    transform: rotate(-2.2deg);
+  }
+  to {
+    transform: rotate(2.2deg);
+  }
+}
+.art-sway--base {
+  transform-origin: 50% 100%;
+}
+
+/* efek partikel baru */
+.fx--melati,
+.fx--feather,
+.fx--streak {
+  animation: fx-fall var(--d) linear var(--dl) infinite;
+}
+.fx--lantern,
+.fx--butterfly {
+  animation: fx-rise var(--d) linear var(--dl) infinite;
+}
+.fx--kawung {
+  top: var(--y);
+}
+.fx--melati b {
+  background: var(--c);
+  -webkit-mask: var(--m-flower) center / contain no-repeat;
+  mask: var(--m-flower) center / contain no-repeat;
+  animation: fx-sway calc(var(--d) * 0.45) ease-in-out var(--dl) infinite;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+}
+.fx--kawung b {
+  background: var(--c);
+  -webkit-mask: var(--m-kawung) center / contain no-repeat;
+  mask: var(--m-kawung) center / contain no-repeat;
+  animation: fx-twinkle var(--d) ease-in-out var(--dl) infinite;
+}
+.fx--lantern b {
+  height: 135%;
+  border-radius: 38% 38% 26% 26%;
+  background: linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 55%, #fff));
+  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--c) 55%, transparent);
+  opacity: 0.85;
+  animation: fx-wobble calc(var(--d) * 0.3) ease-in-out var(--dl) infinite;
+}
+.fx--streak b {
+  width: 2px;
+  height: calc(var(--s) * 6);
+  background: linear-gradient(180deg, transparent, var(--c));
+  opacity: 0.8;
+}
+.fx--feather b {
+  width: 46%;
+  height: 120%;
+  border-radius: 100% 0 100% 0;
+  background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 40%, #fff));
+  opacity: 0.7;
+  animation: fx-sway calc(var(--d) * 0.55) ease-in-out var(--dl) infinite;
+}
+.fx--butterfly b {
+  background: var(--c);
+  -webkit-mask: var(--m-wing) center / contain no-repeat;
+  mask: var(--m-wing) center / contain no-repeat;
+  animation: fx-flap 0.55s ease-in-out var(--dl) infinite alternate;
+  opacity: 0.9;
+}
+@keyframes fx-flap {
+  from {
+    transform: scaleX(1) rotate(8deg);
+  }
+  to {
+    transform: scaleX(0.3) rotate(-8deg);
+  }
+}
+
+/* ---------- ukuran nama, tombol, foto ---------- */
+.inv[data-tpl='jawa'] {
+  --nm: 1.75rem;
+  --b-r: 3px;
+  --b-bg: var(--t-accent);
+}
+.inv[data-tpl='melati'] {
+  --nm: 2.9rem;
+}
+.inv[data-tpl='islami'] {
+  --nm: 2.6rem;
+  --b-r: 10px;
+}
+.inv[data-tpl='artdeco'] {
+  --nm: 1.8rem;
+  --b-r: 0;
+}
+.inv[data-tpl='boho'] {
+  --nm: 3rem;
+  --b-r: 40px;
+}
+.inv[data-tpl='tropis'] {
+  --nm: 2.3rem;
+  --b-r: 18px;
+  --b-bg: var(--t-accent);
+}
+.inv[data-device='desktop'][data-tpl='jawa'] {
+  --nm: 2.7rem;
+}
+.inv[data-device='desktop'][data-tpl='melati'],
+.inv[data-device='desktop'][data-tpl='boho'] {
+  --nm: 5rem;
+}
+.inv[data-device='desktop'][data-tpl='islami'] {
+  --nm: 3.8rem;
+}
+.inv[data-device='desktop'][data-tpl='artdeco'] {
+  --nm: 2.9rem;
+}
+.inv[data-device='desktop'][data-tpl='tropis'] {
+  --nm: 3.5rem;
+}
+.inv[data-tpl='jawa'] .inv-btn,
+.inv[data-tpl='artdeco'] .inv-btn {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+}
+.inv[data-tpl='tropis'] .inv-btn {
+  box-shadow: 3px 3px 0 var(--t-ink);
+}
+.inv[data-tpl='jawa'] .inv-names,
+.inv[data-tpl='artdeco'] .inv-names {
+  letter-spacing: 0.06em;
+}
+.inv[data-tpl='artdeco'] .inv-kicker,
+.inv[data-tpl='jawa'] .inv-kicker,
+.inv[data-tpl='islami'] .inv-kicker {
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+.inv[data-tpl='melati'] .inv-photo,
+.inv[data-tpl='tropis'] .inv-photo {
+  border-radius: 50%;
+  width: 150px;
+  height: 150px;
+}
+.inv[data-tpl='artdeco'] .inv-photo {
+  border-radius: 0;
+  clip-path: polygon(14% 0, 86% 0, 100% 14%, 100% 86%, 86% 100%, 14% 100%, 0 86%, 0 14%);
+  border: 0;
+  outline: 3px solid var(--t-accent);
+  outline-offset: -6px;
+}
+.inv[data-tpl='jawa'] .inv-photo,
+.inv[data-tpl='islami'] .inv-photo {
+  border-radius: 80px 80px 4px 4px;
+}
+.inv[data-tpl='boho'] .inv-photo {
+  border-radius: 90px 90px 90px 90px / 110px 110px 40px 40px;
+}
+.inv[data-device='desktop'][data-tpl='melati'] .inv-photo,
+.inv[data-device='desktop'][data-tpl='tropis'] .inv-photo {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+}
+.inv[data-device='desktop'][data-tpl='artdeco'] .inv-photo {
+  border-radius: 0;
+}
+
+/* ---------- ornamen judul section ---------- */
+[data-tpl='jawa'] .inv-sec h4,
+[data-tpl='artdeco'] .inv-sec h4 {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 1rem;
+}
+[data-tpl='jawa'] .inv-sec h4::after {
+  width: 72px;
+  height: 12px;
+  background: var(--t-accent);
+  -webkit-mask: var(--m-kawung) center / 12px 12px repeat-x;
+  mask: var(--m-kawung) center / 12px 12px repeat-x;
+  opacity: 0.9;
+  border-radius: 0;
+}
+[data-tpl='jawa'] .inv-sec {
+  border-bottom: 3px double var(--t-line);
+}
+[data-tpl='melati'] .inv-sec h4::after {
+  width: 66px;
+  height: 14px;
+  background: var(--t-ink);
+  -webkit-mask: var(--m-flower) center / 14px 14px repeat-x;
+  mask: var(--m-flower) center / 14px 14px repeat-x;
+  opacity: 0.85;
+  border-radius: 0;
+}
+[data-tpl='islami'] .inv-sec h4::after {
+  width: 16px;
+  height: 16px;
+  background: var(--t-accent);
+  -webkit-mask: var(--m-star8) center / contain no-repeat;
+  mask: var(--m-star8) center / contain no-repeat;
+  opacity: 1;
+  border-radius: 0;
+  animation: inv-spin 14s linear infinite;
+}
+[data-tpl='artdeco'] .inv-sec h4::after {
+  width: 64px;
+  height: 7px;
+  background: none;
+  border-top: 1px solid var(--t-accent);
+  border-bottom: 1px solid var(--t-accent);
+  border-radius: 0;
+  opacity: 1;
+}
+[data-tpl='artdeco'] .inv-sec {
+  border-bottom: 1px solid var(--t-line);
+}
+[data-tpl='boho'] .inv-sec h4 {
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 1rem;
+}
+[data-tpl='boho'] .inv-sec h4::after {
+  width: 26px;
+  height: 13px;
+  background: none;
+  border: 2.5px solid var(--t-accent);
+  border-bottom: 0;
+  border-radius: 26px 26px 0 0;
+  opacity: 1;
+}
+[data-tpl='tropis'] .inv-sec h4::after {
+  width: 66px;
+  height: 14px;
+  background: var(--t-accent);
+  -webkit-mask: var(--m-leaf) center / 14px 14px repeat-x;
+  mask: var(--m-leaf) center / 14px 14px repeat-x;
+  opacity: 1;
+  border-radius: 0;
+}
+[data-tpl='melati'] .inv-sec,
+[data-tpl='islami'] .inv-sec {
+  border-bottom-style: solid;
+}

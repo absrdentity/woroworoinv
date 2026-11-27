@@ -14,6 +14,7 @@ import {
   createInvitation,
   daysLeft,
   deleteInvitation,
+  getInvitation,
   listInvitations,
   listRsvps,
   listWishes,
@@ -159,9 +160,9 @@ export default async function handler(req, res) {
       const row = (inv) => ({
         ...inv,
         url: `${origin}/u/${inv.slug}`,
-        manageUrl: `${origin}/kelola/${inv.slug}?k=${inv.editKey}`,
+        manageUrl: inv.lost ? '' : `${origin}/kelola/${inv.slug}?k=${inv.editKey}`,
         priorityUntil: inv.features.includes('priority') ? inv.createdAt + 86400000 : null,
-        status: statusOf(inv),
+        status: inv.lost ? 'lost' : statusOf(inv),
         daysLeft: daysLeft(inv),
       });
 
@@ -175,6 +176,11 @@ export default async function handler(req, res) {
       }
       if (action === 'inv_list') {
         return res.status(200).json({ storage: true, items: (await listInvitations()).map(row) });
+      }
+      if (action === 'inv_domain' && req.method === 'POST') {
+        const inv = await getInvitation(String(body.slug || '').toLowerCase());
+        if (!inv) return res.status(404).json({ error: 'Undangan tidak ditemukan.' });
+        return res.status(200).json(await connectDomain(inv.content && inv.content.domain));
       }
       if (action === 'inv_create' && req.method === 'POST') {
         const inv = await createInvitation(body, { orderId: null });
@@ -199,4 +205,46 @@ export default async function handler(req, res) {
     console.error(err);
     return res.status(err.status || 500).json({ error: err.message || 'Terjadi kesalahan server.' });
   }
+}
+
+
+/** Instruksi DNS untuk domain (apex -> A, subdomain -> CNAME). */
+function dnsFor(domain) {
+  const parts = domain.split('.');
+  const second = ['co.id', 'or.id', 'web.id', 'ac.id', 'sch.id', 'go.id', 'my.id', 'biz.id', 'com.au', 'co.uk'];
+  const apex = parts.length <= 2 || (parts.length === 3 && second.includes(parts.slice(1).join('.')));
+  return apex
+    ? { type: 'A', name: '@', value: '76.76.21.21' }
+    : { type: 'CNAME', name: parts[0], value: 'cname.vercel-dns.com' };
+}
+
+/** Menambahkan domain ke proyek Vercel lewat API (opsional, butuh VERCEL_API_TOKEN + VERCEL_PROJECT_ID). */
+async function connectDomain(domain) {
+  if (!domain) return { ok: false, message: 'Pelanggan belum mengisi domain.' };
+  const dns = dnsFor(domain);
+  const token = process.env.VERCEL_API_TOKEN;
+  const pid = process.env.VERCEL_PROJECT_ID;
+  if (!token || !pid) {
+    return {
+      ok: true, auto: false, domain, dns,
+      message: 'VERCEL_API_TOKEN / VERCEL_PROJECT_ID belum diatur. Tambahkan domain manual: Vercel > Project > Settings > Domains > Add.',
+    };
+  }
+  const team = process.env.VERCEL_TEAM_ID ? `?teamId=${encodeURIComponent(process.env.VERCEL_TEAM_ID)}` : '';
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const add = await fetch(`https://api.vercel.com/v10/projects/${encodeURIComponent(pid)}/domains${team}`, {
+    method: 'POST', headers, body: JSON.stringify({ name: domain }),
+  });
+  const added = await add.json().catch(() => ({}));
+  const exists = added.error && /already|exist/i.test(added.error.code + ' ' + added.error.message);
+  if (!add.ok && !exists) {
+    return { ok: false, domain, dns, message: `Vercel menolak: ${(added.error && added.error.message) || `HTTP ${add.status}`}` };
+  }
+  const cfg = await fetch(`https://api.vercel.com/v6/domains/${encodeURIComponent(domain)}/config${team}`, { headers });
+  const c = await cfg.json().catch(() => ({}));
+  const live = cfg.ok && c.misconfigured === false;
+  return {
+    ok: true, auto: true, domain, dns, live,
+    message: live ? 'Domain terhubung dan DNS sudah benar.' : 'Domain sudah ditambahkan ke Vercel. Minta pelanggan mengarahkan DNS sesuai tabel, lalu cek lagi.',
+  };
 }

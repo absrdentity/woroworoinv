@@ -6,6 +6,45 @@ import Icon from '../components/Icon.jsx';
 /** slug dari alamat /u/<slug> */
 const slugFromPath = (pathname) => decodeURIComponent((pathname.split('/')[2] || '').toLowerCase());
 
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const CACHE = (k) => `wwi:last:${k}`;
+const readCache = (k) => {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE(k)) || 'null');
+  } catch {
+    return null;
+  }
+};
+const writeCache = (k, v) => {
+  try {
+    localStorage.setItem(CACHE(k), JSON.stringify(v));
+  } catch {
+    /* penyimpanan browser penuh / diblokir: abaikan */
+  }
+};
+
+/**
+ * Memuat undangan dengan coba ulang: gangguan sesaat (jaringan, 5xx, 404 semu saat penyimpanan sibuk)
+ * tidak boleh membuat undangan tampak hilang. 404 baru dipercaya setelah dicek ulang.
+ */
+async function loadInvitation(url) {
+  let last = { code: 0, data: null };
+  for (let i = 0; i < 4; i += 1) {
+    try {
+      const r = await fetch(url);
+      const data = await r.json().catch(() => ({}));
+      last = { code: r.status, data };
+      if (r.status === 200 || r.status === 410) return last;
+      if (r.status === 400) return last;
+      if (r.status === 404 && i >= 1) return last;
+    } catch {
+      last = { code: 0, data: null };
+    }
+    await wait(700 * (i + 1));
+  }
+  return last;
+}
+
 async function post(slug, body) {
   const res = await fetch(`/api/invite?slug=${encodeURIComponent(slug)}`, {
     method: 'POST',
@@ -31,23 +70,28 @@ function State({ icon, title, children }) {
 }
 
 /** Halaman undangan asli milik pelanggan: /u/<nama-pemilik>?to=<nama tamu> */
-export default function Invite() {
+export default function Invite({ domain = '' }) {
   const { pathname, search } = useLocation();
-  const slug = slugFromPath(pathname);
+  const slug = domain ? `@${domain}` : slugFromPath(pathname);
+  const [tick, setTick] = useState(0);
   const guest = useMemo(() => (new URLSearchParams(search).get('to') || '').slice(0, 60), [search]);
   const [st, setSt] = useState({ loading: true, code: 0, data: null });
 
   useEffect(() => {
     let off = false;
     setSt({ loading: true, code: 0, data: null });
-    fetch(`/api/invite?slug=${encodeURIComponent(slug)}`)
-      .then(async (r) => ({ code: r.status, data: await r.json().catch(() => ({})) }))
-      .then((x) => !off && setSt({ loading: false, ...x }))
-      .catch(() => !off && setSt({ loading: false, code: 0, data: null }));
+    const url = domain ? `/api/invite?domain=${encodeURIComponent(domain)}` : `/api/invite?slug=${encodeURIComponent(slug)}`;
+    loadInvitation(url).then((x) => {
+      if (off) return;
+      if (x.code === 200 && x.data) writeCache(slug, x.data);
+      // server/jaringan bermasalah: tampilkan salinan terakhir yang pernah berhasil dimuat di perangkat ini
+      if ((x.code === 0 || x.code >= 500) && readCache(slug)) x = { code: 200, data: readCache(slug), stale: true };
+      setSt({ loading: false, ...x });
+    });
     return () => {
       off = true;
     };
-  }, [slug]);
+  }, [slug, domain, tick]);
 
   const d = st.data;
   useEffect(() => {
@@ -62,8 +106,8 @@ export default function Invite() {
       d && st.code === 200
         ? {
             wishes: d.wishes || [],
-            sendWish: (name, message) => post(slug, { type: 'wish', name, message }),
-            sendRsvp: (name, attend) => post(slug, { type: 'rsvp', name, attend }),
+            sendWish: (name, message) => post(d.slug || slug, { type: 'wish', name, message }),
+            sendRsvp: (name, attend) => post(d.slug || slug, { type: 'rsvp', name, attend }),
           }
         : null,
     [d, st.code, slug]
@@ -88,6 +132,10 @@ export default function Invite() {
     return (
       <State icon="alert" title="Undangan belum bisa dibuka">
         Terjadi gangguan saat memuat undangan. Silakan coba lagi beberapa saat lagi.
+        <br />
+        <button type="button" className="btn btn--sm" style={{ marginTop: 12 }} onClick={() => setTick((n) => n + 1)}>
+          Coba lagi
+        </button>
       </State>
     );
   }
@@ -103,7 +151,7 @@ export default function Invite() {
       live={live}
       music={d.music}
       content={d.content}
-      mediaSlug={slug}
+      mediaSlug={d.slug || slug}
       showExtras={false}
     />
   );

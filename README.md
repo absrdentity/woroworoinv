@@ -8,7 +8,7 @@ React + Vite, pembayaran **Midtrans Snap**, siap di-deploy ke **Vercel**.
   yang terbuka dan semakin besar kuota fitur yang bisa dipilih (19 fitur).
 - **Demo live**: pratinjau undangan yang berubah real-time, dengan pilihan tampilan **Ponsel** atau **Desktop**
   (bingkai browser: cover tetap di kiri, isi undangan bergulir di kanan).
-- **8 template** dengan efek berbeda-beda (kelopak sakura, dedaunan, kilau emas, bintang & meteor,
+- **14 template** dengan efek berbeda-beda (kelopak sakura, dedaunan, kilau emas, bintang & meteor,
   gelembung & ombak, hati melayang, konfeti & balon, bentuk geometris). Tiap template punya
   font, ornamen cover animasi, efek nama, dan animasi muncul saat di-scroll sendiri.
 - **Dua tampilan terpisah** (otomatis berdasarkan lebar layar, batas 820px):
@@ -159,3 +159,32 @@ Catatan:
 - Kuota gratis Upstash 250 MB: sekitar 200 undangan dengan foto penuh.
 - Domain kustom hanya disimpan; pengaturan DNS/domain di Vercel dilakukan admin manual.
 - Jumlah fungsi API: 8 (batas Hobby 12).
+
+
+Template bertema budaya: **Jawa Keraton** (gunungan, kawung), **Melati Janur** (roncen melati), **Islami Arabesque** (bintang 8 sudut, lentera, kubah), plus Art Deco Gatsby, Boho Terracotta, dan Tropis Jungle.
+
+## Undangan "hilang" padahal link masih aktif: penyebab & perbaikan
+
+Yang sudah diperbaiki di kode:
+- Galat Redis sesaat (jaringan, 429, 5xx) otomatis dicoba ulang 3x dan tidak lagi terbaca sebagai "tidak ditemukan".
+- Dua pesanan bernama sama yang masuk bersamaan tidak bisa saling menimpa (SET NX).
+- Unggah foto / simpan isi / ubah durasi yang berjalan bersamaan dikunci per undangan, jadi foto tidak "lenyap" dari daftar.
+- Halaman undangan mencoba ulang otomatis, menampilkan salinan terakhir yang pernah dimuat bila server sedang gangguan, dan punya tombol "Coba lagi".
+- Admin menandai undangan yang masa aktifnya belum habis tetapi datanya hilang dari penyimpanan (baris merah di tab Undangan), tidak lagi dibuang diam-diam.
+- Respons undangan di-cache CDN 10 detik sehingga hemat kuota Redis.
+
+Penyebab dari sisi Upstash (cek di console.upstash.com):
+1. **Eviction**: pada database, matikan "Eviction". Bila menyala dan memori penuh, Redis menghapus kunci acak.
+2. **Database tidak aktif**: database gratis yang lama tidak dipakai dapat diarsipkan/dihapus. Buka dashboard sesekali atau upgrade.
+3. **Kuota**: bila kuota perintah/penyimpanan habis, semua perintah gagal sampai periode berikutnya.
+
+## Custom domain
+
+Pelanggan paket Exclusive mengisi domain di halaman Kelola. Alamat utama domain itu (`/`) otomatis menampilkan undangannya, termasuk `?to=Nama Tamu`.
+Admin menyambungkannya di tab Undangan > "Hubungkan domain":
+- Tanpa token: ditampilkan instruksi DNS (A `76.76.21.21` untuk domain utama, CNAME `cname.vercel-dns.com` untuk subdomain). Domain ditambahkan manual di Vercel > Settings > Domains.
+- Otomatis: isi env `VERCEL_API_TOKEN` (vercel.com/account/tokens), `VERCEL_PROJECT_ID` (Settings > General), dan bila perlu `VERCEL_TEAM_ID`. Tombol akan menambahkan domain ke proyek dan mengecek DNS.
+Opsional: isi `SITE_URL` agar domain utama situs Anda tidak memicu pencarian domain kustom.
+
+## Prioritas 24 jam
+Undangan dengan fitur Prioritas ditampilkan paling atas di tab Undangan dengan banner dan batas waktu 24 jam.
